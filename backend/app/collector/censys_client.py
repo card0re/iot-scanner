@@ -19,10 +19,7 @@ IOT_SERVICES = [
 
 class CensysCollector:
     def __init__(self):
-        self.hosts = CensysHosts(
-            api_id=settings.censys_api_id,
-            api_secret=settings.censys_api_secret,
-        )
+        self.hosts = CensysHosts(api_id=settings.censys_api_key)
 
     def collect_country(self, country_code: str) -> list[dict]:
         all_devices = []
