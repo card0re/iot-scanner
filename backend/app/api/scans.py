@@ -4,13 +4,14 @@ import datetime
 import socket
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from app.database import get_db, SessionLocal
 from app.collector.scheduler import run_collection
+from app.collector import proxy_pool
 from app.models.device import ScanJob, ScanStatus, Device, Vulnerability
 from app.schemas.device import ScanJobOut, ScanRequest
 from app.config import settings
@@ -94,52 +95,110 @@ def trigger_scan(req: ScanRequest, db: Session = Depends(get_db)):
     return {"status": "started", "message": "Collection job triggered in background"}
 
 
-class ProxyUpdate(BaseModel):
-    proxy_url: str = ""
+class ProxyAdd(BaseModel):
+    proxies: list[str] = []
+    strategy: str | None = None
+
+
+class ProxyRemove(BaseModel):
+    url: str
+
+
+class ProxyTest(BaseModel):
+    url: str = ""
 
 
 @router.get("/proxy")
 def get_proxy():
-    url = settings.proxy_url
     return {
-        "proxy_url": url,
-        "configured": bool(url),
+        "proxies": proxy_pool.get_all(),
+        "count": proxy_pool.get_count(),
+        "strategy": proxy_pool.get_strategy(),
     }
 
 
 @router.post("/proxy")
-def set_proxy(body: ProxyUpdate):
-    settings.proxy_url = body.proxy_url.strip()
-    return {"status": "ok", "proxy_url": settings.proxy_url}
+def add_proxies(body: ProxyAdd):
+    if body.strategy:
+        proxy_pool.set_strategy(body.strategy)
+    added = proxy_pool.add_proxies(body.proxies)
+    return {
+        "status": "ok",
+        "added": added,
+        "total": proxy_pool.get_count(),
+        "strategy": proxy_pool.get_strategy(),
+    }
+
+
+@router.post("/proxy/file")
+async def upload_proxy_file(file: UploadFile = File(...)):
+    content = (await file.read()).decode("utf-8", errors="ignore")
+    lines = [l.strip() for l in content.splitlines() if l.strip() and not l.strip().startswith("#")]
+    added = proxy_pool.add_proxies(lines)
+    return {
+        "status": "ok",
+        "added": added,
+        "total": proxy_pool.get_count(),
+        "parsed_lines": len(lines),
+    }
+
+
+@router.delete("/proxy")
+def remove_proxy(body: ProxyRemove):
+    removed = proxy_pool.remove_proxy(body.url)
+    return {"status": "ok", "removed": removed, "total": proxy_pool.get_count()}
+
+
+@router.delete("/proxy/all")
+def clear_proxies():
+    proxy_pool.clear_all()
+    return {"status": "ok", "total": 0}
 
 
 @router.post("/proxy/test")
-def test_proxy(body: ProxyUpdate):
-    url = body.proxy_url.strip()
+def test_proxy(body: ProxyTest):
+    url = body.url.strip()
     if not url:
-        return {"status": "error", "message": "No proxy URL provided"}
+        prx = proxy_pool.next_proxy()
+        if not prx:
+            return {"status": "error", "message": "No proxies in pool"}
+        url = prx["url"]
 
     p = urlparse(url)
     scheme = (p.scheme or "").lower()
 
     if scheme.startswith("socks"):
         try:
-            import socks
-            stype = socks.SOCKS5 if "5" in scheme else socks.SOCKS4
-            s = socks.socksocket(socket.AF_INET, socket.SOCK_STREAM)
+            import socks as socks_lib
+            stype = socks_lib.SOCKS5 if "5" in scheme else socks_lib.SOCKS4
+            s = socks_lib.socksocket(socket.AF_INET, socket.SOCK_STREAM)
             s.set_proxy(stype, p.hostname, p.port,
                         username=p.username, password=p.password)
             s.settimeout(6)
             s.connect(("1.1.1.1", 80))
             s.close()
-            return {"status": "ok", "message": f"SOCKS proxy reachable via {p.hostname}:{p.port}"}
+            proxy_pool.mark_proxy(url, True)
+            return {"status": "ok", "message": f"SOCKS OK — {p.hostname}:{p.port}", "proxy": url}
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            proxy_pool.mark_proxy(url, False)
+            return {"status": "error", "message": str(e), "proxy": url}
     else:
         try:
             import httpx
             r = httpx.get("http://httpbin.org/ip", timeout=6, proxy=url)
-            ip = r.json().get("origin", "?")
-            return {"status": "ok", "message": f"HTTP proxy working — exit IP: {ip}"}
+            ip_addr = r.json().get("origin", "?")
+            proxy_pool.mark_proxy(url, True)
+            return {"status": "ok", "message": f"HTTP OK — exit IP: {ip_addr}", "proxy": url}
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            proxy_pool.mark_proxy(url, False)
+            return {"status": "error", "message": str(e), "proxy": url}
+
+
+@router.post("/proxy/test-all")
+def test_all_proxies():
+    results = []
+    for prx in proxy_pool.get_all():
+        res = test_proxy(ProxyTest(url=prx["url"]))
+        results.append(res)
+    alive = sum(1 for r in results if r.get("status") == "ok")
+    return {"results": results, "alive": alive, "total": len(results)}

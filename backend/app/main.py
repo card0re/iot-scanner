@@ -27,6 +27,10 @@ app.include_router(reports.router, prefix="/api")
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
+    from app.config import settings
+    from app.collector import proxy_pool
+    if settings.proxy_url:
+        proxy_pool.add_proxies([settings.proxy_url])
 
 
 @app.get("/api/health")

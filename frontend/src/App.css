@@ -222,41 +222,95 @@ body {
   transition: all 0.2s;
 }
 .btn-proxy-toggle:hover { border-color: var(--accent); color: var(--accent); }
-.proxy-dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; }
-.proxy-dot-on { background: var(--success); box-shadow: 0 0 5px rgba(34, 197, 94, 0.6); }
+.proxy-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+}
 
 /* Proxy settings panel */
 .proxy-settings {
   margin-top: 14px;
-  padding: 14px;
+  padding: 16px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 8px;
   animation: log-appear 0.2s ease-out;
 }
-.proxy-row {
+.proxy-top-row {
   display: flex;
-  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
 }
-.proxy-input {
-  flex: 1;
+.proxy-top-row h3 { font-size: 0.9rem; font-weight: 600; margin: 0; }
+.proxy-strategy {
+  display: flex;
+  gap: 2px;
+  background: var(--bg);
+  border-radius: 6px;
+  padding: 2px;
+}
+.proxy-strategy label {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: all 0.15s;
+}
+.proxy-strategy label.active {
+  background: var(--accent);
+  color: #fff;
+}
+.proxy-strategy input { display: none; }
+
+/* Add section */
+.proxy-add-section { margin-bottom: 8px; }
+.proxy-textarea {
+  width: 100%;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 8px 12px;
   color: var(--text);
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  resize: vertical;
   outline: none;
   transition: border-color 0.2s;
+  box-sizing: border-box;
 }
-.proxy-input:focus { border-color: var(--accent); }
-.proxy-input::placeholder { color: var(--text-dim); opacity: 0.5; }
+.proxy-textarea:focus { border-color: var(--accent); }
+.proxy-textarea::placeholder { color: var(--text-dim); opacity: 0.45; }
 
-.btn-proxy-save { border-color: var(--success); color: var(--success); }
-.btn-proxy-save:hover { background: rgba(34, 197, 94, 0.1); }
-.btn-proxy-test { border-color: var(--accent); color: var(--accent); }
-.btn-proxy-test:hover { background: rgba(59, 130, 246, 0.1); }
+.proxy-add-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.btn-proxy-add { border-color: var(--success); color: var(--success); }
+.btn-proxy-add:hover { background: rgba(34, 197, 94, 0.1); }
+.btn-proxy-file { border-color: var(--accent); color: var(--accent); }
+.btn-proxy-file:hover { background: rgba(59, 130, 246, 0.1); }
+.btn-proxy-testall { border-color: var(--medium); color: var(--medium); }
+.btn-proxy-testall:hover { background: rgba(234, 179, 8, 0.1); }
+.btn-proxy-clear { border-color: var(--critical); color: var(--critical); }
+.btn-proxy-clear:hover { background: rgba(239, 68, 68, 0.1); }
 
 .proxy-result {
   margin-top: 8px;
@@ -267,6 +321,52 @@ body {
 }
 .proxy-result-ok { color: var(--success); background: rgba(34, 197, 94, 0.06); }
 .proxy-result-error { color: var(--critical); background: rgba(239, 68, 68, 0.06); }
+
+/* Proxy list */
+.proxy-list {
+  margin-top: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+.proxy-list::-webkit-scrollbar { width: 5px; }
+.proxy-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.proxy-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+.proxy-item:last-child { border-bottom: none; }
+.proxy-item:hover { background: rgba(59, 130, 246, 0.04); }
+
+.proxy-status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.dot-alive { background: var(--success); box-shadow: 0 0 5px rgba(34, 197, 94, 0.5); }
+.dot-dead { background: var(--critical); }
+.dot-unknown { background: #555; }
+
+.proxy-url { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.proxy-fails { font-size: 0.7rem; color: var(--critical); opacity: 0.8; flex-shrink: 0; }
+
+.proxy-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.proxy-btn-test, .proxy-btn-del {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  transition: all 0.15s;
+}
+.proxy-btn-test:hover { border-color: var(--accent); color: var(--accent); }
+.proxy-btn-del:hover { border-color: var(--critical); color: var(--critical); }
 
 /* Done banner */
 .scan-done-banner {

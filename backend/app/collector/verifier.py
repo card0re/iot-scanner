@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 import httpx
 import socks
 
-from app.config import settings
+from app.collector import proxy_pool
 
 logger = logging.getLogger(__name__)
 
@@ -20,21 +20,23 @@ def _emit(msg: str, level: str = "info"):
     _append_log(msg, level)
 
 
-def _parse_proxy():
-    url = settings.proxy_url
-    if not url:
+def _get_proxy():
+    prx = proxy_pool.next_proxy()
+    if not prx:
         return None
-    p = urlparse(url)
-    scheme = p.scheme.lower()
-    host = p.hostname
-    port = p.port
-    user = p.username
-    pwd = p.password
-    return {"scheme": scheme, "host": host, "port": port, "user": user, "pwd": pwd}
+    p = urlparse(prx["url"])
+    return {
+        "url": prx["url"],
+        "scheme": (p.scheme or "socks5").lower(),
+        "host": p.hostname,
+        "port": p.port,
+        "user": p.username,
+        "pwd": p.password,
+    }
 
 
 def check_port(ip: str, port: int, timeout: float = TIMEOUT) -> bool:
-    proxy = _parse_proxy()
+    proxy = _get_proxy()
     try:
         if proxy and proxy["scheme"].startswith("socks"):
             stype = socks.SOCKS5 if "5" in proxy["scheme"] else socks.SOCKS4
@@ -46,15 +48,20 @@ def check_port(ip: str, port: int, timeout: float = TIMEOUT) -> bool:
         s.settimeout(timeout)
         s.connect((ip, port))
         s.close()
+        if proxy:
+            proxy_pool.mark_proxy(proxy["url"], True)
         return True
     except Exception:
+        if proxy:
+            proxy_pool.mark_proxy(proxy["url"], False)
         return False
 
 
 def grab_http_title(ip: str, port: int) -> str | None:
     proto = "https" if port in (443, 8443, 4443) else "http"
     url = f"{proto}://{ip}:{port}"
-    proxy_url = settings.proxy_url or None
+    proxy = _get_proxy()
+    proxy_url = proxy["url"] if proxy else None
     try:
         r = httpx.get(url, timeout=TIMEOUT, follow_redirects=True, verify=False,
                       proxy=proxy_url)
@@ -88,10 +95,12 @@ def verify_devices_batch(devices_data: list[dict], emit_progress: bool = True) -
     results = []
     total = len(devices_data)
     alive_count = 0
-    proxy = _parse_proxy()
+    pool_size = proxy_pool.get_count()
 
-    if proxy and emit_progress:
-        _emit(f"[VERIFY] Using proxy: {proxy['scheme']}://{proxy['host']}:{proxy['port']}")
+    if pool_size and emit_progress:
+        _emit(f"[VERIFY] Proxy pool: {pool_size} proxies, strategy: {proxy_pool.get_strategy()}")
+    elif emit_progress:
+        _emit("[VERIFY] No proxies configured — direct connections")
 
     for i, d in enumerate(devices_data):
         ip = d.get("ip")
