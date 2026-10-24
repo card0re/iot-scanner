@@ -1,8 +1,11 @@
 import threading
 import time
 import datetime
+import socket
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -10,6 +13,7 @@ from app.database import get_db, SessionLocal
 from app.collector.scheduler import run_collection
 from app.models.device import ScanJob, ScanStatus, Device, Vulnerability
 from app.schemas.device import ScanJobOut, ScanRequest
+from app.config import settings
 
 router = APIRouter(prefix="/scans", tags=["scans"])
 
@@ -88,3 +92,54 @@ def trigger_scan(req: ScanRequest, db: Session = Depends(get_db)):
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
     return {"status": "started", "message": "Collection job triggered in background"}
+
+
+class ProxyUpdate(BaseModel):
+    proxy_url: str = ""
+
+
+@router.get("/proxy")
+def get_proxy():
+    url = settings.proxy_url
+    return {
+        "proxy_url": url,
+        "configured": bool(url),
+    }
+
+
+@router.post("/proxy")
+def set_proxy(body: ProxyUpdate):
+    settings.proxy_url = body.proxy_url.strip()
+    return {"status": "ok", "proxy_url": settings.proxy_url}
+
+
+@router.post("/proxy/test")
+def test_proxy(body: ProxyUpdate):
+    url = body.proxy_url.strip()
+    if not url:
+        return {"status": "error", "message": "No proxy URL provided"}
+
+    p = urlparse(url)
+    scheme = (p.scheme or "").lower()
+
+    if scheme.startswith("socks"):
+        try:
+            import socks
+            stype = socks.SOCKS5 if "5" in scheme else socks.SOCKS4
+            s = socks.socksocket(socket.AF_INET, socket.SOCK_STREAM)
+            s.set_proxy(stype, p.hostname, p.port,
+                        username=p.username, password=p.password)
+            s.settimeout(6)
+            s.connect(("1.1.1.1", 80))
+            s.close()
+            return {"status": "ok", "message": f"SOCKS proxy reachable via {p.hostname}:{p.port}"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    else:
+        try:
+            import httpx
+            r = httpx.get("http://httpbin.org/ip", timeout=6, proxy=url)
+            ip = r.json().get("origin", "?")
+            return {"status": "ok", "message": f"HTTP proxy working — exit IP: {ip}"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
