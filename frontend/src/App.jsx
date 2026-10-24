@@ -16,17 +16,15 @@ export default function App() {
 
   async function loadData() {
     setLoading(true)
-    try {
-      const params = { ...filters }
-      Object.keys(params).forEach(k => { if (!params[k]) delete params[k] })
-      const [s, d] = await Promise.all([fetchStats(), fetchDevices(params)])
-      setStats(s)
-      setDevices(d)
-    } catch (e) {
-      console.error('Failed to load data:', e)
-    } finally {
-      setLoading(false)
-    }
+    const params = { ...filters }
+    Object.keys(params).forEach(k => { if (!params[k]) delete params[k] })
+    const [statsRes, devicesRes] = await Promise.allSettled([
+      fetchStats(),
+      fetchDevices(params),
+    ])
+    if (statsRes.status === 'fulfilled') setStats(statsRes.value)
+    if (devicesRes.status === 'fulfilled') setDevices(devicesRes.value)
+    setLoading(false)
   }
 
   return (
