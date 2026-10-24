@@ -17,10 +17,10 @@ export default function ScanPanel({ onScanComplete }) {
   const [testing, setTesting] = useState(false)
   const fileRef = useRef(null)
 
-  // auto-scraper state
   const [scraper, setScraper] = useState({ running: false, interval: 600, last_run: {} })
   const [scraperInterval, setScraperInterval] = useState('10')
-  const [scraping, setScraping] = useState(false)
+  const [progress, setProgress] = useState(null)
+  const scraperPollRef = useRef(null)
 
   useEffect(() => {
     loadProxies()
@@ -28,6 +28,7 @@ export default function ScanPanel({ onScanComplete }) {
     return () => {
       clearInterval(timerRef.current)
       clearInterval(pollRef.current)
+      clearInterval(scraperPollRef.current)
     }
   }, [])
 
@@ -50,7 +51,31 @@ export default function ScanPanel({ onScanComplete }) {
       const data = await r.json()
       setScraper(data)
       setScraperInterval(String(Math.round((data.interval || 600) / 60)))
+      if (data.progress) setProgress(data.progress)
+      if (data.progress?.active && !scraperPollRef.current) {
+        startScraperPoll()
+      }
     } catch {}
+  }
+
+  function startScraperPoll() {
+    clearInterval(scraperPollRef.current)
+    scraperPollRef.current = setInterval(async () => {
+      try {
+        const r = await fetch('/api/scans/proxy/scraper')
+        const data = await r.json()
+        setScraper(data)
+        const prog = data.progress || {}
+        setProgress(prog)
+        if (prog.active) {
+          loadProxies()
+        } else {
+          clearInterval(scraperPollRef.current)
+          scraperPollRef.current = null
+          loadProxies()
+        }
+      } catch {}
+    }, 1200)
   }
 
   async function startScan() {
@@ -157,19 +182,12 @@ export default function ScanPanel({ onScanComplete }) {
   }
 
   async function runScraperOnce() {
-    setScraping(true)
     setProxyMsg(null)
-    const res = await fetch('/api/scans/proxy/scraper', {
+    await fetch('/api/scans/proxy/scraper', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'run_once', interval: 600 }),
     })
-    const data = await res.json()
-    setScraping(false)
-    setProxyMsg({
-      ok: true,
-      text: `Scraped ${data.scraped_total} candidates, +${data.verified_alive} alive, -${data.purged_dead} purged. Pool: ${data.pool_size}`,
-    })
-    loadProxies()
+    startScraperPoll()
     loadScraper()
   }
 
@@ -187,6 +205,23 @@ export default function ScanPanel({ onScanComplete }) {
   }
 
   const lastRun = scraper.last_run || {}
+  const isScraperActive = progress?.active
+
+  // progress bar percentage
+  let progressPct = 0
+  let progressLabel = ''
+  if (progress?.active) {
+    if (progress.phase === 'scraping') {
+      progressPct = progress.sources_total ? (progress.sources_done / progress.sources_total) * 50 : 0
+      progressLabel = `Scraping: ${progress.current_source} (${progress.sources_done}/${progress.sources_total})`
+    } else if (progress.phase === 'verifying') {
+      progressPct = 50 + (progress.verify_total ? (progress.verify_current / progress.verify_total) * 45 : 0)
+      progressLabel = `Verifying: ${progress.verify_current}/${progress.verify_total} — ${progress.verified_alive} alive`
+    } else if (progress.phase === 'purging') {
+      progressPct = 95
+      progressLabel = 'Purging dead proxies...'
+    }
+  }
 
   return (
     <div className="scan-panel">
@@ -217,13 +252,16 @@ export default function ScanPanel({ onScanComplete }) {
           <div className="scraper-section">
             <div className="scraper-header">
               <div className="scraper-title">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/>
-                  <polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/>
-                  <line x1="4" y1="4" x2="9" y2="9"/>
-                </svg>
+                {isScraperActive
+                  ? <span className="scraper-radar" />
+                  : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/>
+                      <polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/>
+                      <line x1="4" y1="4" x2="9" y2="9"/>
+                    </svg>
+                }
                 <span>Auto-Scraper</span>
-                {scraper.running && <span className="scraper-live-dot" />}
+                {scraper.running && <span className="scraper-live-badge">AUTO</span>}
               </div>
               <div className="scraper-controls">
                 <div className="scraper-interval-group">
@@ -232,8 +270,7 @@ export default function ScanPanel({ onScanComplete }) {
                     className="scraper-interval-input"
                     value={scraperInterval}
                     onChange={e => setScraperInterval(e.target.value)}
-                    min={1}
-                    max={120}
+                    min={1} max={120}
                     disabled={scraper.running}
                   />
                   <span className="scraper-interval-label">min</span>
@@ -241,12 +278,49 @@ export default function ScanPanel({ onScanComplete }) {
                 <button className={`btn-action ${scraper.running ? 'btn-scraper-stop' : 'btn-scraper-start'}`} onClick={toggleScraper}>
                   {scraper.running ? 'Stop' : 'Start'}
                 </button>
-                <button className="btn-action btn-scraper-once" onClick={runScraperOnce} disabled={scraping}>
-                  {scraping ? 'Scraping...' : 'Run Once'}
+                <button className="btn-action btn-scraper-once" onClick={runScraperOnce} disabled={isScraperActive}>
+                  {isScraperActive ? 'Working...' : 'Run Once'}
                 </button>
               </div>
             </div>
-            {lastRun.timestamp && (
+
+            {/* Progress bar */}
+            {isScraperActive && (
+              <div className="scraper-progress">
+                <div className="scraper-progress-bar">
+                  <div className="scraper-progress-fill" style={{ width: `${progressPct}%` }}>
+                    <div className="scraper-progress-glow" />
+                  </div>
+                </div>
+                <div className="scraper-progress-label">{progressLabel}</div>
+                <div className="scraper-live-stats">
+                  <span>Candidates: <b>{progress.candidates_found}</b></span>
+                  <span className="scraper-stat-sep">|</span>
+                  <span style={{color:'var(--success)'}}>Alive: <b>{progress.verified_alive}</b></span>
+                  <span className="scraper-stat-sep">|</span>
+                  <span style={{color:'var(--critical)'}}>Failed: <b>{progress.verified_failed}</b></span>
+                  <span className="scraper-stat-sep">|</span>
+                  <span>Pool: <b>{progress.pool_size}</b></span>
+                </div>
+              </div>
+            )}
+
+            {/* Recently found */}
+            {isScraperActive && progress.recent_adds?.length > 0 && (
+              <div className="scraper-recent">
+                <span className="scraper-recent-title">Just found:</span>
+                <div className="scraper-recent-list">
+                  {progress.recent_adds.slice(-8).reverse().map((url, i) => (
+                    <span key={url} className="scraper-recent-item" style={{ animationDelay: `${i * 0.05}s` }}>
+                      {url.replace(/^socks[45]?:\/\/|^https?:\/\//, '')}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Last run stats (when not active) */}
+            {!isScraperActive && lastRun.timestamp && (
               <div className="scraper-stats">
                 <span>Last: {formatAgo(lastRun.timestamp)}</span>
                 <span className="scraper-stat-sep">|</span>
@@ -263,7 +337,7 @@ export default function ScanPanel({ onScanComplete }) {
 
           {/* --- Manual add --- */}
           <div className="proxy-top-row">
-            <h3>Proxy Pool</h3>
+            <h3>Proxy Pool <span className="proxy-pool-count">{proxies.length}</span></h3>
             <div className="proxy-strategy">
               <label className={strategy === 'round-robin' ? 'active' : ''}>
                 <input type="radio" name="strat" checked={strategy === 'round-robin'} onChange={() => changeStrategy('round-robin')} />
@@ -286,21 +360,13 @@ export default function ScanPanel({ onScanComplete }) {
               spellCheck={false}
             />
             <div className="proxy-add-actions">
-              <button className="btn-action btn-proxy-add" onClick={addFromPaste} disabled={!pasteText.trim()}>
-                Add
-              </button>
-              <button className="btn-action btn-proxy-file" onClick={() => fileRef.current?.click()}>
-                Upload File
-              </button>
+              <button className="btn-action btn-proxy-add" onClick={addFromPaste} disabled={!pasteText.trim()}>Add</button>
+              <button className="btn-action btn-proxy-file" onClick={() => fileRef.current?.click()}>Upload File</button>
               <input ref={fileRef} type="file" accept=".txt,.csv,.list" style={{ display: 'none' }} onChange={uploadFile} />
               {proxies.length > 0 && (
                 <>
-                  <button className="btn-action btn-proxy-testall" onClick={testAll} disabled={testing}>
-                    {testing ? 'Testing...' : 'Test All'}
-                  </button>
-                  <button className="btn-action btn-proxy-clear" onClick={clearAll}>
-                    Clear All
-                  </button>
+                  <button className="btn-action btn-proxy-testall" onClick={testAll} disabled={testing}>{testing ? 'Testing...' : 'Test All'}</button>
+                  <button className="btn-action btn-proxy-clear" onClick={clearAll}>Clear All</button>
                 </>
               )}
             </div>
@@ -315,12 +381,12 @@ export default function ScanPanel({ onScanComplete }) {
           {proxies.length > 0 && (
             <div className="proxy-list">
               {proxies.map((p) => (
-                <div key={p.url} className="proxy-item">
+                <div key={p.url} className={`proxy-item ${p.alive === true && isScraperActive ? 'proxy-item-new' : ''}`}>
                   <span className={`proxy-status-dot ${p.alive === true ? 'dot-alive' : p.alive === false ? 'dot-dead' : 'dot-unknown'}`} />
                   <span className="proxy-url">{p.url}</span>
                   {p.fail_count > 0 && <span className="proxy-fails">{p.fail_count}x fail</span>}
                   <div className="proxy-item-actions">
-                    <button className="proxy-btn-test" onClick={() => testOne(p.url)} title="Test this proxy">Test</button>
+                    <button className="proxy-btn-test" onClick={() => testOne(p.url)} title="Test">Test</button>
                     <button className="proxy-btn-del" onClick={() => removeProxy(p.url)} title="Remove">&times;</button>
                   </div>
                 </div>

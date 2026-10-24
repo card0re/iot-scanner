@@ -269,13 +269,61 @@ body {
   font-weight: 600;
   color: var(--text);
 }
-.scraper-live-dot {
-  width: 7px;
-  height: 7px;
+/* Radar animation */
+.scraper-radar {
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
+  border: 2px solid var(--accent);
+  position: relative;
+  animation: radar-spin 1.5s linear infinite;
+}
+.scraper-radar::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 50%;
+  height: 2px;
+  background: var(--accent);
+  transform-origin: left center;
+  animation: radar-sweep 1.5s linear infinite;
+  box-shadow: 0 0 8px var(--accent);
+}
+.scraper-radar::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+@keyframes radar-sweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes radar-spin {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+.scraper-live-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
   background: var(--success);
-  box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
-  animation: pulse-ring 1.5s ease-out infinite;
+  color: #fff;
+  letter-spacing: 0.05em;
+  animation: badge-pulse 2s ease-in-out infinite;
+}
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 .scraper-controls {
   display: flex;
@@ -320,6 +368,112 @@ body {
   align-items: center;
 }
 .scraper-stat-sep { color: var(--border); }
+
+/* Progress bar */
+.scraper-progress {
+  margin-top: 10px;
+}
+.scraper-progress-bar {
+  height: 6px;
+  background: var(--bg);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+.scraper-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #818cf8);
+  border-radius: 3px;
+  transition: width 0.4s ease-out;
+  position: relative;
+  overflow: hidden;
+}
+.scraper-progress-glow {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40px;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  animation: progress-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes progress-shimmer {
+  0% { transform: translateX(-40px); }
+  100% { transform: translateX(40px); }
+}
+.scraper-progress-label {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--text-dim);
+}
+.scraper-live-stats {
+  margin-top: 6px;
+  font-size: 0.73rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--text-dim);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.scraper-live-stats b { color: var(--text); }
+
+/* Recently found proxies */
+.scraper-recent {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: rgba(59, 130, 246, 0.04);
+  border: 1px solid rgba(59, 130, 246, 0.12);
+  border-radius: 6px;
+}
+.scraper-recent-title {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+  display: block;
+}
+.scraper-recent-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.scraper-recent-item {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 4px;
+  color: var(--success);
+  animation: proxy-pop-in 0.3s ease-out both;
+}
+@keyframes proxy-pop-in {
+  from { opacity: 0; transform: scale(0.8) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Pool count badge */
+.proxy-pool-count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--accent);
+  color: #fff;
+  padding: 1px 7px;
+  border-radius: 10px;
+  margin-left: 6px;
+}
+
+/* New proxy highlight */
+.proxy-item-new {
+  animation: proxy-highlight 1.5s ease-out;
+}
+@keyframes proxy-highlight {
+  0% { background: rgba(34, 197, 94, 0.12); }
+  100% { background: transparent; }
+}
 
 .proxy-divider {
   border: none;

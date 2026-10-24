@@ -218,6 +218,7 @@ def scraper_status():
         "running": proxy_scraper.is_running(),
         "interval": proxy_scraper.get_interval(),
         "last_run": proxy_scraper.get_last_info(),
+        "progress": proxy_scraper.get_progress(),
     }
 
 
@@ -233,8 +234,8 @@ def scraper_control(body: ScraperControl):
         proxy_scraper.stop_daemon()
         return {"status": "stopped"}
     elif body.action == "run_once":
-        info = proxy_scraper.run_scrape_cycle()
-        return {"status": "ok", **info}
+        started = proxy_scraper.run_once_async()
+        return {"status": "started" if started else "already_active"}
     elif body.action == "set_interval":
         proxy_scraper.set_interval(body.interval)
         return {"status": "ok", "interval": proxy_scraper.get_interval()}

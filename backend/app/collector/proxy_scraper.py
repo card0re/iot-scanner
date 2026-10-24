@@ -76,8 +76,36 @@ MAX_FAIL_BEFORE_PURGE = 3
 
 _scraper_thread: threading.Thread | None = None
 _scraper_running = False
-_scraper_interval = 600  # seconds
+_scraper_interval = 600
 _last_run_info: dict = {}
+
+# Live progress tracking
+_progress: dict = {
+    "active": False,
+    "phase": "",          # "scraping" | "verifying" | "purging" | "done"
+    "current_source": "",
+    "sources_done": 0,
+    "sources_total": len(SOURCES),
+    "candidates_found": 0,
+    "verify_current": 0,
+    "verify_total": 0,
+    "verified_alive": 0,
+    "verified_failed": 0,
+    "purged": 0,
+    "pool_size": 0,
+    "recent_adds": [],    # last 20 added proxy urls
+}
+_progress_lock = threading.Lock()
+
+
+def _set_progress(**kw):
+    with _progress_lock:
+        _progress.update(kw)
+
+
+def get_progress() -> dict:
+    with _progress_lock:
+        return _progress.copy()
 
 
 def _emit(msg: str, level: str = "info"):
@@ -175,27 +203,48 @@ def _purge_dead():
 
 def run_scrape_cycle() -> dict:
     global _last_run_info
+
+    _set_progress(
+        active=True, phase="scraping", current_source="",
+        sources_done=0, sources_total=len(SOURCES),
+        candidates_found=0, verify_current=0, verify_total=0,
+        verified_alive=0, verified_failed=0, purged=0,
+        pool_size=proxy_pool.get_count(), recent_adds=[],
+    )
+
     candidates = set()
     source_stats = {}
 
-    for src in SOURCES:
+    for i, src in enumerate(SOURCES):
+        _set_progress(current_source=src["name"], sources_done=i)
         found = _fetch_source(src)
         source_stats[src["name"]] = len(found)
         candidates.update(found)
+        _set_progress(candidates_found=len(candidates), sources_done=i + 1)
 
     existing = {p["url"] for p in proxy_pool.get_all()}
     new_candidates = [u for u in candidates if u not in existing]
 
+    _set_progress(phase="verifying", verify_total=len(new_candidates))
+
     verified = 0
     failed = 0
-    for url in new_candidates:
+    recent_adds = []
+    for j, url in enumerate(new_candidates):
+        _set_progress(verify_current=j + 1)
         if _verify_proxy(url):
             proxy_pool.add_proxies([url])
             proxy_pool.mark_proxy(url, True)
             verified += 1
+            recent_adds.append(url)
+            if len(recent_adds) > 30:
+                recent_adds.pop(0)
+            _set_progress(verified_alive=verified, pool_size=proxy_pool.get_count(), recent_adds=list(recent_adds))
         else:
             failed += 1
+            _set_progress(verified_failed=failed)
 
+    _set_progress(phase="purging")
     purged = _purge_dead()
 
     info = {
@@ -209,7 +258,37 @@ def run_scrape_cycle() -> dict:
         "timestamp": time.time(),
     }
     _last_run_info = info
+    _set_progress(active=False, phase="done", purged=purged, pool_size=proxy_pool.get_count())
     return info
+
+
+_once_thread: threading.Thread | None = None
+
+
+def run_once_async():
+    global _once_thread
+    if get_progress().get("active"):
+        return False
+    _once_thread = threading.Thread(target=_run_once_bg, daemon=True, name="proxy-scraper-once")
+    _once_thread.start()
+    return True
+
+
+def _run_once_bg():
+    try:
+        _emit(f"[PROXY] Scraping RU proxies from {len(SOURCES)} sources...")
+        info = run_scrape_cycle()
+        _emit(
+            f"[PROXY] Done: {info['scraped_total']} scraped, "
+            f"+{info['verified_alive']} alive, "
+            f"-{info['purged_dead']} purged, "
+            f"pool: {info['pool_size']}",
+            "success" if info["verified_alive"] > 0 else "info"
+        )
+    except Exception as e:
+        logger.exception("Proxy scraper error")
+        _emit(f"[PROXY] Scraper error: {e}", "error")
+        _set_progress(active=False, phase="error")
 
 
 def _daemon_loop():
