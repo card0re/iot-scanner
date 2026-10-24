@@ -3,8 +3,8 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.collector.censys_client import CensysCollector
 from app.collector.shodan_client import ShodanCollector
+from app.collector.verifier import verify_device
 from app.config import settings
 from app.models.device import Device, ScanJob, ScanStatus
 from app.ml.classifier import DeviceClassifier
@@ -14,6 +14,12 @@ from app.ml.vulnerability_scorer import VulnerabilityScorer
 logger = logging.getLogger(__name__)
 
 
+def _emit(msg: str, level: str = "info"):
+    from app.api.scans import _append_log
+    _append_log(msg, level)
+    logger.info(msg)
+
+
 def run_collection(db: Session):
     classifier = DeviceClassifier()
     scorer = VulnerabilityScorer()
@@ -21,7 +27,7 @@ def run_collection(db: Session):
 
     for country in settings.target_countries:
         _collect_source(db, "shodan", country, classifier, scorer, cve_mapper)
-        _collect_source(db, "censys", country, classifier, scorer, cve_mapper)
+    _emit("[CENSYS] Skipped — Censys Search API v2 decommissioned Sep 2026, Platform API requires paid org", "warn")
 
 
 def _collect_source(
@@ -32,6 +38,8 @@ def _collect_source(
     scorer: VulnerabilityScorer,
     cve_mapper: CVEMapper,
 ):
+    _emit(f"[{source.upper()}] Starting scan for country={country_code}")
+
     job = ScanJob(
         status=ScanStatus.RUNNING,
         source=source,
@@ -42,16 +50,26 @@ def _collect_source(
     db.commit()
 
     try:
-        if source == "shodan":
-            raw_devices = ShodanCollector().collect_country(country_code)
-        else:
-            raw_devices = CensysCollector().collect_country(country_code)
+        _emit(f"[{source.upper()}] Querying API for {country_code} IoT devices...")
+        raw_devices = ShodanCollector().collect_country(country_code)
+
+        _emit(f"[{source.upper()}] Received {len(raw_devices)} raw results for {country_code}")
+        _emit(f"[VERIFY] Starting liveness check on {len(raw_devices)} devices...")
 
         devices_count = 0
+        alive_count = 0
         vulns_count = 0
 
-        for raw in raw_devices:
+        for i, raw in enumerate(raw_devices):
+            ports = raw.get("open_ports") or [raw.get("port", 80)]
+            check = verify_device(raw["ip"], ports)
+
             device = _upsert_device(db, raw)
+            device.is_alive = check["is_alive"]
+            device.alive_ports = check["alive_ports"]
+            device.http_title = check["http_title"]
+            device.last_checked = check["last_checked"]
+
             device_type, confidence = classifier.predict(raw)
             device.device_type = device_type
             device.device_type_confidence = confidence
@@ -64,22 +82,35 @@ def _collect_source(
 
             device.vulnerability_score = scorer.score(device, vulns)
             devices_count += 1
+            if check["is_alive"]:
+                alive_count += 1
+
+            if (i + 1) % 5 == 0 or i == len(raw_devices) - 1:
+                db.commit()
+                title_info = f' — "{check["http_title"]}"' if check["http_title"] else ""
+                status = "ALIVE" if check["is_alive"] else "dead"
+                _emit(
+                    f"[VERIFY] {country_code} [{i + 1}/{len(raw_devices)}] "
+                    f"{raw['ip']} → {status} ({len(check['alive_ports'])} ports){title_info} "
+                    f"| total alive: {alive_count}/{devices_count}"
+                )
 
         job.status = ScanStatus.COMPLETED
         job.devices_found = devices_count
         job.vulns_found = vulns_count
         job.finished_at = datetime.datetime.now(datetime.UTC)
         db.commit()
-        logger.info(
-            "Scan complete: source=%s country=%s devices=%d vulns=%d",
-            source, country_code, devices_count, vulns_count,
+        _emit(
+            f"[{source.upper()}] DONE {country_code}: {devices_count} devices, "
+            f"{alive_count} alive, {vulns_count} CVEs",
+            "success",
         )
     except Exception as e:
         job.status = ScanStatus.FAILED
         job.error_message = str(e)[:500]
         job.finished_at = datetime.datetime.now(datetime.UTC)
         db.commit()
-        logger.error("Scan failed: %s", e)
+        _emit(f"[{source.upper()}] FAILED {country_code}: {e}", "error")
 
 
 def _upsert_device(db: Session, raw: dict) -> Device:

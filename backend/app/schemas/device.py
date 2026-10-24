@@ -35,6 +35,10 @@ class DeviceOut(BaseModel):
     longitude: float | None
     vulnerability_score: float | None
     is_default_creds: bool
+    is_alive: bool
+    alive_ports: list[int] | None
+    http_title: str | None
+    last_checked: datetime.datetime | None
     open_ports: list[int] | None
     source: str
     first_seen: datetime.datetime

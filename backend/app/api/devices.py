@@ -17,10 +17,11 @@ def list_devices(
     min_score: float | None = None,
     source: str | None = None,
     search: str | None = None,
+    alive_only: bool = False,
     db: Session = Depends(get_db),
 ):
     items, total = get_devices(
-        db, page, per_page, country_code, device_type, min_score, source, search,
+        db, page, per_page, country_code, device_type, min_score, source, search, alive_only,
     )
     return DeviceList(items=items, total=total, page=page, per_page=per_page)
 

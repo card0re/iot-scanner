@@ -60,9 +60,13 @@ class Device(Base):
     longitude: Mapped[float | None] = mapped_column(Float)
     vulnerability_score: Mapped[float | None] = mapped_column(Float, index=True)
     is_default_creds: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_alive: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    alive_ports: Mapped[list | None] = mapped_column(ARRAY(Integer))
+    http_title: Mapped[str | None] = mapped_column(String(500))
+    last_checked: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     open_ports: Mapped[list | None] = mapped_column(ARRAY(Integer))
     raw_data: Mapped[dict | None] = mapped_column(JSONB)
-    source: Mapped[str] = mapped_column(String(20))  # shodan / censys
+    source: Mapped[str] = mapped_column(String(20))
     first_seen: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

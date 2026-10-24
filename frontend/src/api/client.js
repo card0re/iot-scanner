@@ -10,7 +10,10 @@ export async function fetchStats() {
 }
 
 export async function fetchDevices(params) {
-  const { data } = await api.get('/api/devices', { params })
+  const clean = { ...params }
+  if (clean.alive_only) clean.alive_only = 'true'
+  else delete clean.alive_only
+  const { data } = await api.get('/api/devices', { params: clean })
   return data
 }
 

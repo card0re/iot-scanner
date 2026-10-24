@@ -13,9 +13,12 @@ def get_devices(
     min_score: float | None = None,
     source: str | None = None,
     search: str | None = None,
+    alive_only: bool = False,
 ) -> tuple[list[Device], int]:
     q = db.query(Device).options(joinedload(Device.vulnerabilities))
 
+    if alive_only:
+        q = q.filter(Device.is_alive == True)
     if country_code:
         q = q.filter(Device.country_code == country_code)
     if device_type:

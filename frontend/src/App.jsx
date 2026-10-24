@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { fetchStats, fetchDevices, triggerScan } from './api/client'
+import { fetchStats, fetchDevices } from './api/client'
+import ScanPanel from './components/ScanPanel'
 import StatsCards from './components/StatsCards'
 import Charts from './components/Charts'
 import DeviceTable from './components/DeviceTable'
@@ -10,11 +11,8 @@ export default function App() {
   const [devices, setDevices] = useState({ items: [], total: 0 })
   const [filters, setFilters] = useState({ page: 1, country_code: '', device_type: '', min_score: '' })
   const [loading, setLoading] = useState(true)
-  const [scanning, setScanning] = useState(false)
 
-  useEffect(() => {
-    loadData()
-  }, [filters])
+  useEffect(() => { loadData() }, [filters])
 
   async function loadData() {
     setLoading(true)
@@ -31,26 +29,13 @@ export default function App() {
     }
   }
 
-  async function handleScan() {
-    setScanning(true)
-    try {
-      await triggerScan({})
-      setTimeout(loadData, 3000)
-    } catch (e) {
-      console.error('Scan trigger failed:', e)
-    } finally {
-      setScanning(false)
-    }
-  }
-
   return (
     <div className="app">
       <header className="header">
         <h1>IoT Vulnerability Scanner</h1>
-        <button className="btn-scan" onClick={handleScan} disabled={scanning}>
-          {scanning ? 'Scanning...' : 'Run Scan'}
-        </button>
       </header>
+
+      <ScanPanel onScanComplete={loadData} />
 
       {stats && <StatsCards stats={stats} />}
       {stats && <Charts stats={stats} />}
@@ -77,6 +62,14 @@ export default function App() {
           type="number" placeholder="Min vuln score" value={filters.min_score}
           onChange={e => setFilters(f => ({ ...f, min_score: e.target.value, page: 1 }))}
         />
+        <label className="filter-toggle">
+          <input
+            type="checkbox"
+            checked={filters.alive_only || false}
+            onChange={e => setFilters(f => ({ ...f, alive_only: e.target.checked, page: 1 }))}
+          />
+          <span>Alive only</span>
+        </label>
       </section>
 
       <DeviceTable

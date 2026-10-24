@@ -1,4 +1,5 @@
 import logging
+import os
 
 from censys.search import CensysHosts
 
@@ -19,7 +20,8 @@ IOT_SERVICES = [
 
 class CensysCollector:
     def __init__(self):
-        self.hosts = CensysHosts(api_id=settings.censys_api_key)
+        os.environ["CENSYS_API_KEY"] = settings.censys_api_key
+        self.hosts = CensysHosts()
 
     def collect_country(self, country_code: str) -> list[dict]:
         all_devices = []

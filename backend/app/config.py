@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     censys_api_key: str = ""
     collect_interval_hours: int = 24
     target_countries: list[str] = ["IR", "RU"]
+    proxy_url: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
