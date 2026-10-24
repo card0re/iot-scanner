@@ -12,6 +12,7 @@ from sqlalchemy import desc
 from app.database import get_db, SessionLocal
 from app.collector.scheduler import run_collection
 from app.collector import proxy_pool
+from app.collector import proxy_scraper
 from app.models.device import ScanJob, ScanStatus, Device, Vulnerability
 from app.schemas.device import ScanJobOut, ScanRequest
 from app.config import settings
@@ -202,3 +203,39 @@ def test_all_proxies():
         results.append(res)
     alive = sum(1 for r in results if r.get("status") == "ok")
     return {"results": results, "alive": alive, "total": len(results)}
+
+
+# --- Proxy auto-scraper ---
+
+class ScraperControl(BaseModel):
+    action: str  # start / stop
+    interval: int = 600
+
+
+@router.get("/proxy/scraper")
+def scraper_status():
+    return {
+        "running": proxy_scraper.is_running(),
+        "interval": proxy_scraper.get_interval(),
+        "last_run": proxy_scraper.get_last_info(),
+    }
+
+
+@router.post("/proxy/scraper")
+def scraper_control(body: ScraperControl):
+    if body.action == "start":
+        started = proxy_scraper.start_daemon(body.interval)
+        return {
+            "status": "started" if started else "already_running",
+            "interval": proxy_scraper.get_interval(),
+        }
+    elif body.action == "stop":
+        proxy_scraper.stop_daemon()
+        return {"status": "stopped"}
+    elif body.action == "run_once":
+        info = proxy_scraper.run_scrape_cycle()
+        return {"status": "ok", **info}
+    elif body.action == "set_interval":
+        proxy_scraper.set_interval(body.interval)
+        return {"status": "ok", "interval": proxy_scraper.get_interval()}
+    return {"status": "error", "message": f"Unknown action: {body.action}"}

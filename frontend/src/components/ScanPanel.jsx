@@ -17,8 +17,14 @@ export default function ScanPanel({ onScanComplete }) {
   const [testing, setTesting] = useState(false)
   const fileRef = useRef(null)
 
+  // auto-scraper state
+  const [scraper, setScraper] = useState({ running: false, interval: 600, last_run: {} })
+  const [scraperInterval, setScraperInterval] = useState('10')
+  const [scraping, setScraping] = useState(false)
+
   useEffect(() => {
     loadProxies()
+    loadScraper()
     return () => {
       clearInterval(timerRef.current)
       clearInterval(pollRef.current)
@@ -35,6 +41,15 @@ export default function ScanPanel({ onScanComplete }) {
       const data = await r.json()
       setProxies(data.proxies || [])
       setStrategy(data.strategy || 'round-robin')
+    } catch {}
+  }
+
+  async function loadScraper() {
+    try {
+      const r = await fetch('/api/scans/proxy/scraper')
+      const data = await r.json()
+      setScraper(data)
+      setScraperInterval(String(Math.round((data.interval || 600) / 60)))
     } catch {}
   }
 
@@ -131,10 +146,47 @@ export default function ScanPanel({ onScanComplete }) {
     })
   }
 
+  async function toggleScraper() {
+    const action = scraper.running ? 'stop' : 'start'
+    const interval = Math.max(1, parseInt(scraperInterval) || 10) * 60
+    await fetch('/api/scans/proxy/scraper', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, interval }),
+    })
+    loadScraper()
+  }
+
+  async function runScraperOnce() {
+    setScraping(true)
+    setProxyMsg(null)
+    const res = await fetch('/api/scans/proxy/scraper', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'run_once', interval: 600 }),
+    })
+    const data = await res.json()
+    setScraping(false)
+    setProxyMsg({
+      ok: true,
+      text: `Scraped ${data.scraped_total} candidates, +${data.verified_alive} alive, -${data.purged_dead} purged. Pool: ${data.pool_size}`,
+    })
+    loadProxies()
+    loadScraper()
+  }
+
   function formatTime(s) {
     const m = Math.floor(s / 60), sec = s % 60
     return `${m}:${sec.toString().padStart(2, '0')}`
   }
+
+  function formatAgo(ts) {
+    if (!ts) return 'never'
+    const sec = Math.floor(Date.now() / 1000 - ts)
+    if (sec < 60) return `${sec}s ago`
+    if (sec < 3600) return `${Math.floor(sec / 60)}m ago`
+    return `${Math.floor(sec / 3600)}h ago`
+  }
+
+  const lastRun = scraper.last_run || {}
 
   return (
     <div className="scan-panel">
@@ -161,6 +213,55 @@ export default function ScanPanel({ onScanComplete }) {
 
       {showProxy && (
         <div className="proxy-settings">
+          {/* --- Auto-scraper --- */}
+          <div className="scraper-section">
+            <div className="scraper-header">
+              <div className="scraper-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/>
+                  <polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/>
+                  <line x1="4" y1="4" x2="9" y2="9"/>
+                </svg>
+                <span>Auto-Scraper</span>
+                {scraper.running && <span className="scraper-live-dot" />}
+              </div>
+              <div className="scraper-controls">
+                <div className="scraper-interval-group">
+                  <input
+                    type="number"
+                    className="scraper-interval-input"
+                    value={scraperInterval}
+                    onChange={e => setScraperInterval(e.target.value)}
+                    min={1}
+                    max={120}
+                    disabled={scraper.running}
+                  />
+                  <span className="scraper-interval-label">min</span>
+                </div>
+                <button className={`btn-action ${scraper.running ? 'btn-scraper-stop' : 'btn-scraper-start'}`} onClick={toggleScraper}>
+                  {scraper.running ? 'Stop' : 'Start'}
+                </button>
+                <button className="btn-action btn-scraper-once" onClick={runScraperOnce} disabled={scraping}>
+                  {scraping ? 'Scraping...' : 'Run Once'}
+                </button>
+              </div>
+            </div>
+            {lastRun.timestamp && (
+              <div className="scraper-stats">
+                <span>Last: {formatAgo(lastRun.timestamp)}</span>
+                <span className="scraper-stat-sep">|</span>
+                <span>Found: {lastRun.scraped_total || 0}</span>
+                <span className="scraper-stat-sep">|</span>
+                <span style={{ color: 'var(--success)' }}>+{lastRun.verified_alive || 0} alive</span>
+                <span className="scraper-stat-sep">|</span>
+                <span style={{ color: 'var(--critical)' }}>-{lastRun.purged_dead || 0} dead</span>
+              </div>
+            )}
+          </div>
+
+          <div className="proxy-divider" />
+
+          {/* --- Manual add --- */}
           <div className="proxy-top-row">
             <h3>Proxy Pool</h3>
             <div className="proxy-strategy">
@@ -178,7 +279,7 @@ export default function ScanPanel({ onScanComplete }) {
           <div className="proxy-add-section">
             <textarea
               className="proxy-textarea"
-              rows={4}
+              rows={3}
               placeholder={"Paste proxies — one per line:\nsocks5://user:pass@host:port\nhttp://host:port\nhost:port  (defaults to socks5)"}
               value={pasteText}
               onChange={e => setPasteText(e.target.value)}
@@ -213,7 +314,7 @@ export default function ScanPanel({ onScanComplete }) {
 
           {proxies.length > 0 && (
             <div className="proxy-list">
-              {proxies.map((p, i) => (
+              {proxies.map((p) => (
                 <div key={p.url} className="proxy-item">
                   <span className={`proxy-status-dot ${p.alive === true ? 'dot-alive' : p.alive === false ? 'dot-dead' : 'dot-unknown'}`} />
                   <span className="proxy-url">{p.url}</span>
