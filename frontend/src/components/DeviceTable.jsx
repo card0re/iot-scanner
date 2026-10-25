@@ -34,7 +34,7 @@ function getAllWebUrls(d) {
     .filter(Boolean)
 }
 
-export default function DeviceTable({ devices, page, perPage, onPageChange, onPerPageChange, search, onSearchChange, loading }) {
+export default function DeviceTable({ devices, page, perPage, onPageChange, onPerPageChange, search, onSearchChange, loading, exploitedIps = {} }) {
   const [selected, setSelected] = useState(null)
   const [consoleIp, setConsoleIp] = useState(null)
   const [exploiting, setExploiting] = useState({})
@@ -116,10 +116,21 @@ export default function DeviceTable({ devices, page, perPage, onPageChange, onPe
             const alive = d.is_alive
             const webUrl = getAliveWebUrl(d)
             const alivePorts = d.alive_ports || []
+            const exploit = exploitedIps[d.ip]
             return (
-              <tr key={d.id} className={`${selected?.id === d.id ? 'row-selected' : ''} ${!alive ? 'row-dead' : ''}`}>
+              <tr key={d.id} className={`${selected?.id === d.id ? 'row-selected' : ''} ${!alive ? 'row-dead' : ''} ${exploit ? 'row-exploited' : ''}`}>
                 <td>
-                  <span className={`status-dot ${alive ? 'status-alive' : 'status-dead'}`} title={alive ? 'Alive' : 'Unreachable'} />
+                  <div className="status-cell">
+                    <span className={`status-dot ${alive ? 'status-alive' : 'status-dead'}`} title={alive ? 'Alive' : 'Unreachable'} />
+                    {exploit && (
+                      <span
+                        className={`exploit-badge exploit-badge-${exploit.access_level}`}
+                        title={`${exploit.protocol.toUpperCase()} ${exploit.username}:${exploit.password || '(empty)'} — ${exploit.access_level}`}
+                      >
+                        {exploit.access_level === 'root' ? 'ROOT' : exploit.access_level === 'user' ? 'USER' : 'ACC'}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td style={{ fontFamily: 'monospace' }}>{d.ip}</td>
                 <td>
@@ -154,7 +165,11 @@ export default function DeviceTable({ devices, page, perPage, onPageChange, onPe
                   <button className="btn-action btn-details" onClick={() => setSelected(selected?.id === d.id ? null : d)} title="View details">
                     Info
                   </button>
-                  {alive && alivePorts.some(p => [22, 23, 2222, 2323].includes(p)) && (
+                  {exploit ? (
+                    <span className="btn-action btn-owned" title={`${exploit.protocol.toUpperCase()} ${exploit.username}:${exploit.password || '(empty)'}`}>
+                      Owned
+                    </span>
+                  ) : alive && alivePorts.some(p => [22, 23, 2222, 2323].includes(p)) && (
                     <button
                       className="btn-action btn-exploit"
                       onClick={() => autoExploit(d.id)}

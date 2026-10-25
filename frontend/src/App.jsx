@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { fetchStats, fetchDevices } from './api/client'
+import { fetchStats, fetchDevices, fetchExploitedIps } from './api/client'
 import ScanPanel from './components/ScanPanel'
 import StatsCards from './components/StatsCards'
 import Charts from './components/Charts'
@@ -11,6 +11,7 @@ export default function App() {
   const [tab, setTab] = useState('devices')
   const [stats, setStats] = useState(null)
   const [devices, setDevices] = useState({ items: [], total: 0 })
+  const [exploitedIps, setExploitedIps] = useState({})
   const [filters, setFilters] = useState({ page: 1, per_page: 50, country_code: '', device_type: '', min_score: '', search: '' })
   const [searchInput, setSearchInput] = useState('')
   const [loading, setLoading] = useState(true)
@@ -30,12 +31,14 @@ export default function App() {
     setLoading(true)
     const params = { ...filters }
     Object.keys(params).forEach(k => { if (!params[k]) delete params[k] })
-    const [statsRes, devicesRes] = await Promise.allSettled([
+    const [statsRes, devicesRes, exploitedRes] = await Promise.allSettled([
       fetchStats(),
       fetchDevices(params),
+      fetchExploitedIps(),
     ])
     if (statsRes.status === 'fulfilled') setStats(statsRes.value)
     if (devicesRes.status === 'fulfilled') setDevices(devicesRes.value)
+    if (exploitedRes.status === 'fulfilled') setExploitedIps(exploitedRes.value)
     setLoading(false)
   }
 
@@ -90,6 +93,14 @@ export default function App() {
               />
               <span>Alive only</span>
             </label>
+            <label className="filter-toggle filter-toggle-exploited">
+              <input
+                type="checkbox"
+                checked={filters.exploited_only || false}
+                onChange={e => setFilters(f => ({ ...f, exploited_only: e.target.checked, page: 1 }))}
+              />
+              <span>Exploited only</span>
+            </label>
           </section>
 
           <DeviceTable
@@ -97,6 +108,7 @@ export default function App() {
             page={filters.page}
             perPage={filters.per_page}
             search={searchInput}
+            exploitedIps={exploitedIps}
             onPageChange={p => setFilters(f => ({ ...f, page: p }))}
             onPerPageChange={n => setFilters(f => ({ ...f, per_page: n, page: 1 }))}
             onSearchChange={handleSearch}

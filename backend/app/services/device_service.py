@@ -1,7 +1,7 @@
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, exists, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from app.models.device import Device, Vulnerability, ScanJob, DeviceType, Severity
+from app.models.device import Device, Vulnerability, ScanJob, DeviceType, Severity, ExploitedDevice, ExploitStatus
 
 
 def get_devices(
@@ -14,11 +14,21 @@ def get_devices(
     source: str | None = None,
     search: str | None = None,
     alive_only: bool = False,
+    exploited_only: bool = False,
 ) -> tuple[list[Device], int]:
     q = db.query(Device)
 
     if alive_only:
         q = q.filter(Device.is_alive == True)
+    if exploited_only:
+        q = q.filter(
+            exists(
+                select(ExploitedDevice.id).where(
+                    ExploitedDevice.ip == Device.ip,
+                    ExploitedDevice.status == ExploitStatus.SUCCESS,
+                )
+            )
+        )
     if country_code:
         q = q.filter(Device.country_code == country_code)
     if device_type:

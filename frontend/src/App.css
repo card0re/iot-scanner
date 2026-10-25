@@ -889,6 +889,58 @@ body {
 }
 .status-dead { background: #555; }
 
+.status-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.exploit-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: default;
+}
+.exploit-badge-root {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.exploit-badge-user {
+  background: rgba(249, 115, 22, 0.2);
+  color: #fb923c;
+  border: 1px solid rgba(249, 115, 22, 0.3);
+}
+.exploit-badge-unknown {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.row-exploited {
+  background: rgba(34, 197, 94, 0.04);
+}
+.row-exploited:hover {
+  background: rgba(34, 197, 94, 0.08) !important;
+}
+
+.btn-owned {
+  color: #3fb950 !important;
+  border-color: rgba(63, 185, 80, 0.3) !important;
+  background: rgba(63, 185, 80, 0.1) !important;
+  cursor: default !important;
+  font-weight: 600;
+  font-size: 0.72rem;
+}
+
+.filter-toggle-exploited span {
+  color: #3fb950;
+}
+
 .title-cell {
   max-width: 180px;
   overflow: hidden;

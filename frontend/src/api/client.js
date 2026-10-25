@@ -14,8 +14,15 @@ export async function fetchDevices(params) {
   const clean = { ...params }
   if (clean.alive_only) clean.alive_only = 'true'
   else delete clean.alive_only
+  if (clean.exploited_only) clean.exploited_only = 'true'
+  else delete clean.exploited_only
   Object.keys(clean).forEach(k => { if (!clean[k] && clean[k] !== 0) delete clean[k] })
   const { data } = await api.get('/api/devices', { params: clean })
+  return data
+}
+
+export async function fetchExploitedIps() {
+  const { data } = await api.get('/api/exploited/ips')
   return data
 }
 
