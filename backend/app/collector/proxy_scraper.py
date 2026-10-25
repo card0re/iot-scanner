@@ -212,11 +212,12 @@ SOURCES = [
     },
 ]
 
-VERIFY_TIMEOUT = 5
-VERIFY_WORKERS = 40
+VERIFY_TIMEOUT = 4
+VERIFY_WORKERS = 50
 SCRAPE_WORKERS = 8
-REVERIFY_WORKERS = 20
+REVERIFY_WORKERS = 25
 REVERIFY_INTERVAL = 300
+MAX_VERIFY_PER_CYCLE = 3000
 
 _scraper_thread: threading.Thread | None = None
 _scraper_running = False
@@ -445,22 +446,35 @@ def run_scrape_cycle() -> dict:
                 candidates_found=len(candidates),
             )
 
-    # Phase 4: filter already-known proxies by host:port
+    # Phase 4: filter already-known, prioritize RU/IR, cap total
     existing_hp = set()
     for p in proxy_pool.get_all():
         existing_hp.add(f"{p['host']}:{p['port']}")
 
-    new_candidates = []
+    priority_candidates = []
+    bulk_candidates = []
     for url, cc in candidates.items():
         parsed = urlparse(url)
         hp = f"{parsed.hostname}:{parsed.port}"
-        if hp not in existing_hp:
-            new_candidates.append((url, cc))
-            existing_hp.add(hp)
+        if hp in existing_hp:
+            continue
+        existing_hp.add(hp)
+        if cc and cc.upper() in ("RU", "IR"):
+            priority_candidates.append((url, cc))
+        else:
+            bulk_candidates.append((url, cc))
 
+    # RU/IR first (all of them), then random sample of bulk up to cap
+    import random as _rand
+    remaining_slots = max(0, MAX_VERIFY_PER_CYCLE - len(priority_candidates))
+    if len(bulk_candidates) > remaining_slots:
+        _rand.shuffle(bulk_candidates)
+        bulk_candidates = bulk_candidates[:remaining_slots]
+
+    new_candidates = priority_candidates + bulk_candidates
     _set_progress(phase="verifying", verify_total=len(new_candidates))
 
-    # Phase 5: verify new candidates
+    # Phase 5: verify new candidates (priority RU/IR first, then sampled bulk)
     verified = 0
     failed = 0
     done_count = 0
