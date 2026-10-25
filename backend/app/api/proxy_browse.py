@@ -188,14 +188,33 @@ def _build_info_bar(device: dict, host: str, port: int, scheme: str, base_path: 
     <div style="height:42px"></div>'''
 
 
+def _build_intercept_script(base_path: str) -> str:
+    return (
+        '<script>(function(){'
+        'var B="' + base_path + '";'
+        'var F=window.fetch;'
+        'window.fetch=function(u,o){'
+        'if(typeof u==="string"&&u.charAt(0)==="/"&&u.indexOf("/api/proxy/")!==0)u=B+u;'
+        'return F.call(this,u,o);'
+        '};'
+        'var X=XMLHttpRequest.prototype.open;'
+        'XMLHttpRequest.prototype.open=function(m,u){'
+        'if(typeof u==="string"&&u.charAt(0)==="/"&&u.indexOf("/api/proxy/")!==0)arguments[1]=B+u;'
+        'return X.apply(this,arguments);'
+        '};'
+        '})()</script>'
+    )
+
+
 def _rewrite_html(body: str, base_path: str, target_origin: str, host: str, port: int,
                    info_bar: str = "") -> str:
+    intercept = _build_intercept_script(base_path)
     inject = info_bar
     if "<head" in body.lower():
-        base_tag = f'<base href="{base_path}/">'
+        base_tag = f'<base href="{base_path}/">{intercept}'
         body = re.sub(r"(<head[^>]*>)", rf"\1{base_tag}", body, count=1, flags=re.IGNORECASE)
     else:
-        base_tag = f'<head><base href="{base_path}/"></head>'
+        base_tag = f'<head><base href="{base_path}/">{intercept}</head>'
         body = re.sub(r"(<html[^>]*>)", rf"\1{base_tag}", body, count=1, flags=re.IGNORECASE)
 
     if inject:
