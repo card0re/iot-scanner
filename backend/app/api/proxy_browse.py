@@ -14,12 +14,57 @@ from app.models.device import Device
 router = APIRouter(prefix="/proxy", tags=["proxy"])
 
 ALLOWED_SCHEMES = {"http", "https"}
-TIMEOUT = 10
+TIMEOUT = 12
+MAX_RETRIES = 3
 
 
 def _get_proxy_url() -> str | None:
     prx = proxy_pool.next_proxy()
     return prx["url"] if prx else None
+
+
+async def _fetch_with_retry(method: str, target_url: str, body: bytes | None,
+                             max_retries: int = MAX_RETRIES) -> httpx.Response:
+    last_exc = None
+    tried_proxies = set()
+
+    for attempt in range(max_retries):
+        proxy_url = _get_proxy_url()
+        if proxy_url and proxy_url in tried_proxies:
+            proxy_url = _get_proxy_url()
+        if proxy_url:
+            tried_proxies.add(proxy_url)
+
+        try:
+            async with httpx.AsyncClient(
+                proxy=proxy_url,
+                verify=False,
+                timeout=TIMEOUT,
+                follow_redirects=True,
+                limits=httpx.Limits(max_connections=5),
+            ) as client:
+                resp = await client.request(
+                    method,
+                    target_url,
+                    content=body,
+                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+                )
+                if resp.status_code == 400 and proxy_url:
+                    proxy_pool.mark_proxy(proxy_url, False)
+                    continue
+                if proxy_url:
+                    proxy_pool.mark_proxy(proxy_url, True)
+                return resp
+        except (httpx.TimeoutException, httpx.ConnectError, httpx.ProxyError) as e:
+            if proxy_url:
+                proxy_pool.mark_proxy(proxy_url, False)
+            last_exc = e
+            continue
+        except Exception as e:
+            last_exc = e
+            break
+
+    raise last_exc or Exception("All proxy attempts failed")
 
 
 def _lookup_device(ip: str) -> dict | None:
@@ -143,7 +188,8 @@ def _build_info_bar(device: dict, host: str, port: int, scheme: str, base_path: 
     <div style="height:42px"></div>'''
 
 
-def _rewrite_html(body: str, base_path: str, target_origin: str, info_bar: str = "") -> str:
+def _rewrite_html(body: str, base_path: str, target_origin: str, host: str, port: int,
+                   info_bar: str = "") -> str:
     inject = info_bar
     if "<head" in body.lower():
         base_tag = f'<base href="{base_path}/">'
@@ -161,6 +207,20 @@ def _rewrite_html(body: str, base_path: str, target_origin: str, info_bar: str =
     body = body.replace(target_origin + "/", base_path + "/")
     body = body.replace(target_origin + '"', base_path + '"')
     body = body.replace(target_origin + "'", base_path + "'")
+
+    def _rewrite_abs_url(m):
+        s = m.group(1)
+        h = m.group(2)
+        p = m.group(3) or ("443" if s == "https" else "80")
+        pth = m.group(4) or ""
+        return f'{base_path.rsplit("/", 2)[0]}/{s}/{h}/{p}/{pth}'
+
+    body = re.sub(
+        rf'https?://{re.escape(host)}(?::(\d+))?(/[^\s"\'<>]*)?',
+        lambda m: f'/api/proxy/{"https" if m.group(0).startswith("https") else "http"}/{host}/{m.group(1) or port}/{(m.group(2) or "/").lstrip("/")}',
+        body,
+    )
+
     return body
 
 
@@ -185,31 +245,16 @@ async def proxy_browse(scheme: str, host: str, port: int, path: str, request: Re
     if qs:
         target_url += f"?{qs}"
 
-    proxy_url = _get_proxy_url()
     base_path = f"/api/proxy/{scheme}/{host}/{port}"
 
     try:
-        async with httpx.AsyncClient(
-            proxy=proxy_url,
-            verify=False,
-            timeout=TIMEOUT,
-            follow_redirects=True,
-            limits=httpx.Limits(max_connections=5),
-        ) as client:
-            method = request.method.upper()
-            body = await request.body() if method == "POST" else None
-
-            resp = await client.request(
-                method,
-                target_url,
-                content=body,
-                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
-            )
+        method = request.method.upper()
+        body = await request.body() if method == "POST" else None
+        resp = await _fetch_with_retry(method, target_url, body)
     except httpx.TimeoutException:
-        return Response(content="Proxy timeout — target unreachable", status_code=504)
+        return Response(content="Proxy timeout — target unreachable after retries", status_code=504)
     except Exception as e:
-        proxy_info = f" via {proxy_url}" if proxy_url else " (direct)"
-        return Response(content=f"Proxy error{proxy_info}: {e}", status_code=502)
+        return Response(content=f"Proxy error: {e}", status_code=502)
 
     content_type = resp.headers.get("content-type", "")
     response_body = resp.content
@@ -229,7 +274,7 @@ async def proxy_browse(scheme: str, host: str, port: int, path: str, request: Re
                 if device:
                     info_bar = _build_info_bar(device, host, port, scheme, base_path)
 
-            text = _rewrite_html(text, base_path, target_origin, info_bar)
+            text = _rewrite_html(text, base_path, target_origin, host, port, info_bar)
             response_body = text.encode(charset, errors="replace")
         except Exception:
             pass
