@@ -230,6 +230,32 @@ body {
 .sample-size-input::-webkit-inner-spin-button { opacity: 0.5; }
 .sample-size-input:focus { color: var(--accent); }
 .sample-size-label { font-size: 0.72rem; color: var(--text-dim); white-space: nowrap; }
+.sample-size-small { gap: 3px; }
+.sample-size-small .sample-size-input { width: 60px; font-size: 0.7rem; padding: 2px 4px; }
+
+.scan-options-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0 0;
+  flex-wrap: wrap;
+}
+.scan-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+.scan-toggle input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+.scan-toggle:has(input:checked) { color: var(--accent); }
 
 /* Proxy toggle button */
 .btn-proxy-toggle {

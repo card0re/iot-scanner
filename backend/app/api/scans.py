@@ -78,15 +78,29 @@ def trigger_scan(req: ScanRequest, db: Session = Depends(get_db)):
         return {"status": "already_running", "message": "A scan is already in progress"}
 
     sample_size = req.sample_size
+    auto_exploit = req.auto_exploit
+    direct_scan_on = req.direct_scan
+    direct_sample = req.direct_sample
+    ssh_focused = req.ssh_focused
 
     def _run():
         global scan_active
         scan_active = True
         scan_log.clear()
-        _append_log(f"Scan started — collecting IoT data (sample_size={sample_size})")
+        _append_log(
+            f"Scan started — sample_size={sample_size}, direct_scan={direct_scan_on}, "
+            f"direct_sample={direct_sample}, auto_exploit={auto_exploit}"
+        )
         try:
             with SessionLocal() as session:
-                run_collection(session, sample_size=sample_size)
+                run_collection(
+                    session,
+                    sample_size=sample_size,
+                    auto_exploit=auto_exploit,
+                    direct_scan_enabled=direct_scan_on,
+                    direct_sample=direct_sample,
+                    ssh_focused=ssh_focused,
+                )
             _append_log("Scan completed successfully", "success")
         except Exception as e:
             _append_log(f"Scan failed: {e}", "error")

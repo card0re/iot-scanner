@@ -111,6 +111,10 @@ class ScanRequest(BaseModel):
     country_code: str = "IR"
     query: str | None = None
     sample_size: int = 500
+    auto_exploit: bool = True
+    direct_scan: bool = True
+    direct_sample: int = 2000
+    ssh_focused: bool = True
 
 
 class ExploitedDeviceOut(BaseModel):
