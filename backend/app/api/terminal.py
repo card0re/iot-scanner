@@ -9,17 +9,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 router = APIRouter(prefix="/terminal", tags=["terminal"])
 log = logging.getLogger(__name__)
 
-KNOWN_DEFAULTS = {
-    "camera": [("admin", "admin"), ("admin", ""), ("admin", "12345"), ("admin", "888888"), ("root", "root"), ("root", "")],
-    "router": [("admin", "admin"), ("admin", "password"), ("admin", "1234"), ("root", "root"), ("user", "user")],
-    "dvr": [("admin", "admin"), ("admin", ""), ("admin", "4321"), ("admin", "12345"), ("888888", "888888")],
-    "nas": [("admin", "admin"), ("admin", ""), ("root", "root")],
-    "printer": [("admin", "admin"), ("admin", ""), ("root", "root")],
-    "scada": [("admin", "admin"), ("admin", ""), ("user", "user")],
-    "smart_home": [("admin", "admin"), ("root", "root"), ("admin", "")],
-    "industrial": [("admin", "admin"), ("root", "root")],
-    "unknown": [("admin", "admin"), ("admin", ""), ("root", "root"), ("root", "")],
-}
+from app.wordlists import KNOWN_DEFAULTS
 
 
 @router.get("/defaults/{device_type}")

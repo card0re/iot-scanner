@@ -83,10 +83,10 @@ class ShodanCollector:
             except Exception:
                 pass
 
-    def collect_country(self, country_code: str, exclude_ips: set[str] | None = None) -> list[dict]:
+    def collect_country(self, country_code: str, exclude_ips: set[str] | None = None, sample_size: int = 500) -> list[dict]:
         if self.has_paid_key:
             return self._collect_via_search(country_code)
-        return self._collect_via_internetdb(country_code, exclude_ips=exclude_ips)
+        return self._collect_via_internetdb(country_code, sample_size=sample_size, exclude_ips=exclude_ips)
 
     def _collect_via_search(self, country_code: str) -> list[dict]:
         queries = [

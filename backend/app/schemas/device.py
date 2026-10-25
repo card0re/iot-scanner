@@ -110,6 +110,7 @@ class ScanRequest(BaseModel):
     source: str = "shodan"
     country_code: str = "IR"
     query: str | None = None
+    sample_size: int = 500
 
 
 class ExploitedDeviceOut(BaseModel):

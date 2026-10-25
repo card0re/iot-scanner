@@ -22,7 +22,7 @@ def _emit(msg: str, level: str = "info"):
     logger.info(msg)
 
 
-def run_collection(db: Session):
+def run_collection(db: Session, sample_size: int = 500):
     classifier = DeviceClassifier()
     scorer = VulnerabilityScorer()
     cve_mapper = CVEMapper()
@@ -37,8 +37,10 @@ def run_collection(db: Session):
     if known_ips:
         _emit(f"[SCAN] {len(known_ips)} devices already in DB — scanning only new IPs")
 
+    _emit(f"[SCAN] Sample size per country: {sample_size}")
+
     for country in settings.target_countries:
-        _collect_source(db, "shodan", country, classifier, scorer, cve_mapper, known_ips)
+        _collect_source(db, "shodan", country, classifier, scorer, cve_mapper, known_ips, sample_size=sample_size)
     _emit("[CENSYS] Skipped — Censys Search API v2 decommissioned Sep 2026, Platform API requires paid org", "warn")
 
 
@@ -50,6 +52,7 @@ def _collect_source(
     scorer: VulnerabilityScorer,
     cve_mapper: CVEMapper,
     exclude_ips: set[str] | None = None,
+    sample_size: int = 500,
 ):
     _emit(f"[{source.upper()}] Starting scan for country={country_code}")
 
@@ -64,7 +67,7 @@ def _collect_source(
 
     try:
         _emit(f"[{source.upper()}] Querying API for {country_code} IoT devices...")
-        raw_devices = ShodanCollector().collect_country(country_code, exclude_ips=exclude_ips)
+        raw_devices = ShodanCollector().collect_country(country_code, exclude_ips=exclude_ips, sample_size=sample_size)
 
         _emit(f"[{source.upper()}] Received {len(raw_devices)} raw results for {country_code}")
         _emit(f"[VERIFY] Starting liveness check on {len(raw_devices)} devices (10 parallel)...")

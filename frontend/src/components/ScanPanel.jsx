@@ -16,6 +16,8 @@ export default function ScanPanel({ onScanComplete }) {
   const [testing, setTesting] = useState(false)
   const fileRef = useRef(null)
 
+  const [sampleSize, setSampleSize] = useState(500)
+
   const [scraper, setScraper] = useState({ running: false, interval: 600, last_run: {} })
   const [scraperInterval, setScraperInterval] = useState('10')
   const [progress, setProgress] = useState(null)
@@ -84,7 +86,7 @@ export default function ScanPanel({ onScanComplete }) {
     setActive(true); setLogs([]); setElapsed(0); setStatus(null)
     try {
       const res = await fetch('/api/scans/trigger', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sample_size: sampleSize }),
       })
       const data = await res.json()
       if (data.status === 'already_running')
@@ -240,6 +242,19 @@ export default function ScanPanel({ onScanComplete }) {
             </svg>
             {proxies.length > 0 && <span className="proxy-badge">{proxies.length}</span>}
           </button>
+          <div className="sample-size-group">
+            <input
+              type="number"
+              className="sample-size-input"
+              value={sampleSize}
+              onChange={e => setSampleSize(Math.max(1, parseInt(e.target.value) || 1))}
+              min={1}
+              max={10000}
+              disabled={active}
+              title="Number of new devices to scan"
+            />
+            <span className="sample-size-label">devices</span>
+          </div>
           <button className="btn-scan" onClick={startScan} disabled={active}>
             {active ? (
               <span className="btn-scan-active"><span className="spinner" /> Scanning...</span>

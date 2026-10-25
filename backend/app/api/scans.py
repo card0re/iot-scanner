@@ -77,14 +77,16 @@ def trigger_scan(req: ScanRequest, db: Session = Depends(get_db)):
     if scan_active:
         return {"status": "already_running", "message": "A scan is already in progress"}
 
+    sample_size = req.sample_size
+
     def _run():
         global scan_active
         scan_active = True
         scan_log.clear()
-        _append_log("Scan started — collecting IoT data from Shodan & Censys")
+        _append_log(f"Scan started — collecting IoT data (sample_size={sample_size})")
         try:
             with SessionLocal() as session:
-                run_collection(session)
+                run_collection(session, sample_size=sample_size)
             _append_log("Scan completed successfully", "success")
         except Exception as e:
             _append_log(f"Scan failed: {e}", "error")

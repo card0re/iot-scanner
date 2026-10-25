@@ -206,6 +206,31 @@ body {
   gap: 8px;
 }
 
+/* Sample size input */
+.sample-size-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+.sample-size-input {
+  width: 64px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-family: inherit;
+  text-align: right;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.sample-size-input::-webkit-inner-spin-button { opacity: 0.5; }
+.sample-size-input:focus { color: var(--accent); }
+.sample-size-label { font-size: 0.72rem; color: var(--text-dim); white-space: nowrap; }
+
 /* Proxy toggle button */
 .btn-proxy-toggle {
   position: relative;
