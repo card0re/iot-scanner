@@ -1189,6 +1189,62 @@ body {
 .console-input:focus { border-color: #58a6ff; }
 .console-input::placeholder { color: #484f58; }
 
+/* WebTerminal */
+.webterminal {
+  border: 1px solid #30363d; border-radius: 8px;
+  overflow: hidden; margin: 8px 0;
+}
+.webterminal-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 12px; background: #161b22;
+  border-bottom: 1px solid #30363d;
+}
+.webterminal-title { color: #58a6ff; font-weight: 600; font-size: 13px; }
+.webterminal-status {
+  font-size: 11px; color: #f85149; font-weight: 700;
+  padding: 2px 8px; border-radius: 4px; background: #f8514922;
+}
+.wt-connected { color: #3fb950 !important; background: #3fb95022 !important; }
+.webterminal-login {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; background: #0d1117;
+  flex-wrap: wrap;
+}
+.wt-input {
+  background: #161b22; border: 1px solid #30363d;
+  color: #c9d1d9; padding: 6px 10px; border-radius: 6px;
+  font-family: inherit; font-size: 13px; outline: none;
+  width: 140px;
+}
+.wt-input:focus { border-color: #58a6ff; }
+.wt-connect-btn {
+  background: #238636; border: 1px solid #2ea043;
+  color: #fff; padding: 6px 16px; border-radius: 6px;
+  cursor: pointer; font-family: inherit; font-size: 13px;
+  font-weight: 600;
+}
+.wt-connect-btn:hover { background: #2ea043; }
+.wt-connect-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.wt-defaults {
+  display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap; width: 100%; margin-top: 4px;
+}
+.wt-default-btn {
+  background: #21262d; border: 1px solid #30363d;
+  color: #e3b341; padding: 2px 8px; border-radius: 4px;
+  cursor: pointer; font-size: 11px; font-family: inherit;
+}
+.wt-default-btn:hover { background: #30363d; color: #f0e68c; }
+.webterminal-container {
+  height: 350px; background: #0a0c10;
+}
+.webterminal-container .xterm { height: 100%; padding: 4px; }
+.console-btn-connect {
+  background: #23863622 !important; border-color: #2ea043 !important;
+  color: #3fb950 !important;
+}
+.console-btn-connect:hover { background: #23863644 !important; }
+
 .btn-console {
   background: #161b22 !important; border-color: #22c55e44 !important;
   color: #22c55e !important;

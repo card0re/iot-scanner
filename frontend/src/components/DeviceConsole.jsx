@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
+import WebTerminal from './WebTerminal'
 
 const SEV_COLORS = { critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#22c55e', info: '#8b8d98' }
+const TERM_PROTOCOLS = { 22: 'ssh', 23: 'telnet' }
 
 export default function DeviceConsole({ ip, onClose }) {
   const [data, setData] = useState(null)
@@ -8,6 +10,7 @@ export default function DeviceConsole({ ip, onClose }) {
   const [error, setError] = useState(null)
   const [httpDetail, setHttpDetail] = useState(null)
   const [httpLoading, setHttpLoading] = useState(false)
+  const [termSession, setTermSession] = useState(null)
   const [customUrl, setCustomUrl] = useState('')
   const [customResult, setCustomResult] = useState(null)
   const [customLoading, setCustomLoading] = useState(false)
@@ -133,6 +136,12 @@ export default function DeviceConsole({ ip, onClose }) {
                         HTTP &rarr;
                       </button>
                     )}
+                    {TERM_PROTOCOLS[p] && (
+                      <button className="console-btn-sm console-btn-connect"
+                        onClick={() => setTermSession({ port: p, protocol: TERM_PROTOCOLS[p] })}>
+                        Connect {TERM_PROTOCOLS[p].toUpperCase()} &rarr;
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -145,6 +154,12 @@ export default function DeviceConsole({ ip, onClose }) {
                     <div key={m.port} className="console-line">
                       <span className="console-port-num">{String(m.port).padStart(5)}/tcp</span>
                       <span className="console-mgmt-tag">{m.service}</span>
+                      {TERM_PROTOCOLS[m.port] && (
+                        <button className="console-btn-sm console-btn-connect"
+                          onClick={() => setTermSession({ port: m.port, protocol: TERM_PROTOCOLS[m.port] })}>
+                          Connect &rarr;
+                        </button>
+                      )}
                       {data.banners[String(m.port)] && (
                         <pre className="console-pre">{data.banners[String(m.port)]}</pre>
                       )}
@@ -281,6 +296,18 @@ export default function DeviceConsole({ ip, onClose }) {
             </div>
           )}
         </div>
+
+        {/* Web Terminal */}
+        {termSession && (
+          <div className="console-section">
+            <WebTerminal
+              ip={ip}
+              port={termSession.port}
+              protocol={termSession.protocol}
+              onClose={() => setTermSession(null)}
+            />
+          </div>
+        )}
 
         {/* Custom request input */}
         <div className="console-input-bar">
