@@ -1,8 +1,28 @@
 import datetime
+import re
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.models.device import DeviceType, Severity, ScanStatus
+
+
+def _parse_pg_array(v) -> list[int] | None:
+    if v is None:
+        return None
+    if isinstance(v, list):
+        if not v:
+            return []
+        if all(isinstance(x, int) for x in v):
+            return v
+        joined = "".join(str(x) for x in v)
+        return _parse_pg_array(joined)
+    if isinstance(v, str):
+        v = v.strip()
+        if v in ("", "{}", "[]"):
+            return []
+        inner = v.strip("{}[]")
+        return [int(x) for x in inner.split(",") if x.strip().lstrip("-").isdigit()]
+    return None
 
 
 class VulnerabilityOut(BaseModel):
@@ -36,11 +56,16 @@ class DeviceOut(BaseModel):
     vulnerability_score: float | None
     is_default_creds: bool
     is_alive: bool
-    alive_ports: list[int] | None
-    http_title: str | None
-    last_checked: datetime.datetime | None
-    open_ports: list[int] | None
+    alive_ports: list[int] | None = None
+    http_title: str | None = None
+    last_checked: datetime.datetime | None = None
+    open_ports: list[int] | None = None
     source: str
+
+    @field_validator("alive_ports", "open_ports", mode="before")
+    @classmethod
+    def coerce_int_array(cls, v):
+        return _parse_pg_array(v)
     first_seen: datetime.datetime
     last_seen: datetime.datetime
     vulnerabilities: list[VulnerabilityOut] = []
