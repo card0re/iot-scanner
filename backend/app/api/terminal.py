@@ -84,17 +84,6 @@ async def ws_ssh(ws: WebSocket, host: str, port: int):
 
     await ws.send_json({"type": "connected", "data": f"Connected to {host}:{port}"})
 
-    async def read_ssh():
-        try:
-            while not session.is_closing():
-                data = await asyncio.wait_for(session.stdout.read(4096), timeout=0.5)
-                if data:
-                    await ws.send_json({"type": "output", "data": data})
-        except asyncio.TimeoutError:
-            pass
-        except Exception:
-            pass
-
     async def read_ws():
         try:
             while True:
@@ -160,19 +149,6 @@ async def ws_telnet(ws: WebSocket, host: str, port: int):
         return
 
     await ws.send_json({"type": "connected", "data": f"Connected to {host}:{port}"})
-
-    async def telnet_read():
-        try:
-            while True:
-                data = await asyncio.wait_for(reader.read(4096), timeout=0.3)
-                if data:
-                    await ws.send_json({"type": "output", "data": data})
-                if reader.at_eof():
-                    break
-        except asyncio.TimeoutError:
-            pass
-        except Exception:
-            pass
 
     async def ws_read():
         try:

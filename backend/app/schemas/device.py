@@ -110,3 +110,65 @@ class ScanRequest(BaseModel):
     source: str = "shodan"
     country_code: str = "IR"
     query: str | None = None
+
+
+class ExploitedDeviceOut(BaseModel):
+    id: int
+    device_id: int | None
+    ip: str
+    port: int
+    protocol: str
+    username: str
+    password: str
+    proof_command: str
+    command_output: str | None
+    access_level: str
+    status: str
+    device_type: str | None
+    country_code: str | None
+    banner: str | None
+    manufacturer: str | None
+    model_name: str | None
+    firmware_version: str | None
+    vulnerability_score: float | None
+    org: str | None
+    notes: str | None
+    verified_at: datetime.datetime
+    last_accessed: datetime.datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+class ExploitedDeviceList(BaseModel):
+    items: list[ExploitedDeviceOut]
+    total: int
+    page: int
+    per_page: int
+
+
+class ExploitRequest(BaseModel):
+    device_id: int | None = None
+    ip: str | None = None
+    ports: list[int] | None = None
+    device_type: str = "unknown"
+
+
+class BatchExploitRequest(BaseModel):
+    device_ids: list[int] = []
+
+
+class ExecuteCommandRequest(BaseModel):
+    command: str
+
+
+class ExploitResultOut(BaseModel):
+    success: bool
+    ip: str
+    port: int
+    protocol: str
+    username: str
+    password: str
+    command: str
+    output: str
+    access_level: str
+    error: str

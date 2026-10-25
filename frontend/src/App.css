@@ -1251,6 +1251,226 @@ body {
 }
 .btn-console:hover { background: #22c55e22 !important; }
 
+/* ===== HEADER TABS ===== */
+.header-tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 3px;
+}
+.header-tab {
+  padding: 6px 18px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.header-tab:hover { color: var(--text); }
+.header-tab-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ===== EXPLOIT BUTTON ===== */
+.btn-exploit {
+  border-color: #f8514944 !important;
+  color: #f85149 !important;
+  font-weight: 600 !important;
+}
+.btn-exploit:hover {
+  background: #f8514922 !important;
+  border-color: #f85149 !important;
+}
+.btn-exploit:disabled { opacity: 0.5; }
+
+/* ===== EXPLOIT TOAST ===== */
+.exploit-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  margin-bottom: 12px;
+  animation: log-appear 0.3s ease-out;
+}
+.exploit-toast-ok {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: var(--success);
+}
+.exploit-toast-fail {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: var(--critical);
+}
+.exploit-toast-close {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  opacity: 0.6;
+}
+.exploit-toast-close:hover { opacity: 1; }
+
+/* ===== EXPLOITED SECTION ===== */
+.exploited-section {
+  margin-top: 8px;
+}
+.exploited-stats-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.exploited-stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 90px;
+  transition: transform 0.2s;
+}
+.exploited-stat:hover { transform: translateY(-2px); }
+.exploited-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--success);
+}
+.exploited-stat-label {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+/* Access badge */
+.exploited-access-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Protocol tag */
+.exploited-proto {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.exploited-proto-ssh { background: #3b82f622; color: #3b82f6; }
+.exploited-proto-telnet { background: #eab30822; color: #eab308; }
+
+/* Credentials */
+.exploited-creds {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.78rem;
+  color: #e3b341;
+}
+.exploited-cred-sep { color: var(--text-dim); margin: 0 1px; }
+.exploited-creds-inline {
+  font-size: 11px;
+  color: #e3b341;
+  margin-left: 8px;
+}
+
+/* Proof */
+.exploited-proof {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  cursor: help;
+}
+
+.exploited-time {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+/* Batch progress */
+.exploited-batch-progress {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+}
+.exploited-batch-bar {
+  height: 6px;
+  background: var(--bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.exploited-batch-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f85149, #ef4444);
+  border-radius: 3px;
+  transition: width 0.4s ease-out;
+}
+.exploited-batch-info {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--text-dim);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.exploited-batch-info b { color: var(--text); }
+
+/* Shell panel */
+.exploited-shell {
+  margin-top: 16px;
+  background: #0a0c10;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.exploited-shell-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+}
+.exploited-shell-title {
+  color: #58a6ff;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  font-weight: 600;
+}
+.exploited-proof-output {
+  padding: 10px 14px;
+  border-bottom: 1px solid #21262d;
+}
+.exploited-cmd-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #161b22;
+}
+.exploited-cmd-result {
+  padding: 10px 14px;
+}
+
 @media (max-width: 768px) {
   .charts { grid-template-columns: 1fr; }
   .stat-cards { grid-template-columns: 1fr 1fr; }

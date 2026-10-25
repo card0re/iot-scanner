@@ -37,6 +37,29 @@ function getAllWebUrls(d) {
 export default function DeviceTable({ devices, page, perPage, onPageChange, onPerPageChange, search, onSearchChange, loading }) {
   const [selected, setSelected] = useState(null)
   const [consoleIp, setConsoleIp] = useState(null)
+  const [exploiting, setExploiting] = useState({})
+  const [exploitMsg, setExploitMsg] = useState(null)
+
+  async function autoExploit(deviceId) {
+    setExploiting(prev => ({ ...prev, [deviceId]: true }))
+    setExploitMsg(null)
+    try {
+      const r = await fetch('/api/exploited/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_id: deviceId }),
+      })
+      const data = await r.json()
+      if (data.status === 'success') {
+        setExploitMsg({ ok: true, text: `${data.ip}:${data.port} — ${data.access_level} via ${data.protocol} (${data.username}:${data.password})` })
+      } else {
+        setExploitMsg({ ok: false, text: `${data.ip} — no valid credentials found` })
+      }
+    } catch (e) {
+      setExploitMsg({ ok: false, text: e.message })
+    }
+    setExploiting(prev => ({ ...prev, [deviceId]: false }))
+  }
 
   const totalPages = Math.ceil(devices.total / (perPage || 50))
 
@@ -64,6 +87,13 @@ export default function DeviceTable({ devices, page, perPage, onPageChange, onPe
           </label>
         </div>
       </div>
+
+      {exploitMsg && (
+        <div className={`exploit-toast ${exploitMsg.ok ? 'exploit-toast-ok' : 'exploit-toast-fail'}`}>
+          {exploitMsg.ok ? 'ACCESS GAINED' : 'FAILED'}: {exploitMsg.text}
+          <button className="exploit-toast-close" onClick={() => setExploitMsg(null)}>&times;</button>
+        </div>
+      )}
 
       {loading && <div className="loading">Loading...</div>}
 
@@ -124,6 +154,16 @@ export default function DeviceTable({ devices, page, perPage, onPageChange, onPe
                   <button className="btn-action btn-details" onClick={() => setSelected(selected?.id === d.id ? null : d)} title="View details">
                     Info
                   </button>
+                  {alive && alivePorts.some(p => [22, 23, 2222, 2323].includes(p)) && (
+                    <button
+                      className="btn-action btn-exploit"
+                      onClick={() => autoExploit(d.id)}
+                      disabled={exploiting[d.id]}
+                      title="Try default credentials via SSH/Telnet"
+                    >
+                      {exploiting[d.id] ? '...' : 'Exploit'}
+                    </button>
+                  )}
                 </td>
               </tr>
             )

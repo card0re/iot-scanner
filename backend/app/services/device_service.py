@@ -1,5 +1,5 @@
 from sqlalchemy import func, desc
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.device import Device, Vulnerability, ScanJob, DeviceType, Severity
 
@@ -15,7 +15,7 @@ def get_devices(
     search: str | None = None,
     alive_only: bool = False,
 ) -> tuple[list[Device], int]:
-    q = db.query(Device).options(joinedload(Device.vulnerabilities))
+    q = db.query(Device)
 
     if alive_only:
         q = q.filter(Device.is_alive == True)
@@ -36,7 +36,8 @@ def get_devices(
 
     total = q.count()
     items = (
-        q.order_by(desc(Device.vulnerability_score))
+        q.options(selectinload(Device.vulnerabilities))
+        .order_by(desc(Device.vulnerability_score))
         .offset((page - 1) * per_page)
         .limit(per_page)
         .all()

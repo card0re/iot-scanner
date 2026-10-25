@@ -14,6 +14,8 @@ export default function DeviceConsole({ ip, onClose }) {
   const [customUrl, setCustomUrl] = useState('')
   const [customResult, setCustomResult] = useState(null)
   const [customLoading, setCustomLoading] = useState(false)
+  const [exploiting, setExploiting] = useState(false)
+  const [exploitResult, setExploitResult] = useState(null)
   const logRef = useRef(null)
 
   useEffect(() => {
@@ -59,6 +61,28 @@ export default function DeviceConsole({ ip, onClose }) {
       setCustomResult({ error: e.message })
     }
     setCustomLoading(false)
+  }
+
+  async function autoExploit() {
+    setExploiting(true)
+    setExploitResult(null)
+    try {
+      const body = { ip }
+      if (data?.device) {
+        const allPorts = [...(data.alive_ports || []), ...(data.device?.open_ports || [])]
+        body.ports = [...new Set(allPorts.map(Number).filter(Boolean))]
+        body.device_type = data.device?.type || 'unknown'
+      }
+      const r = await fetch('/api/exploited/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      setExploitResult(await r.json())
+    } catch (e) {
+      setExploitResult({ status: 'error', message: e.message })
+    }
+    setExploiting(false)
   }
 
   const dev = data?.device
@@ -165,6 +189,44 @@ export default function DeviceConsole({ ip, onClose }) {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Auto-Exploit */}
+              {data.alive_ports.some(p => [22, 23, 2222, 2323].includes(p)) && (
+                <div className="console-section">
+                  <div className="console-line console-warn">--- Auto-Exploit ---</div>
+                  <div className="console-line">
+                    <button
+                      className="console-btn-sm console-btn-connect"
+                      onClick={autoExploit}
+                      disabled={exploiting}
+                      style={{ padding: '4px 14px', fontSize: '12px' }}
+                    >
+                      {exploiting ? 'Trying credentials...' : 'Auto-Exploit (SSH/Telnet)'}
+                    </button>
+                  </div>
+                  {exploitResult && (
+                    exploitResult.status === 'success' ? (
+                      <div className="console-section" style={{ marginTop: 8 }}>
+                        <div className="console-line" style={{ color: '#3fb950', fontWeight: 700 }}>
+                          ACCESS GAINED — {exploitResult.protocol?.toUpperCase()} {exploitResult.ip}:{exploitResult.port}
+                        </div>
+                        <div className="console-line">
+                          Credentials: <span style={{ color: '#e3b341' }}>{exploitResult.username}:{exploitResult.password || '(empty)'}</span>
+                        </div>
+                        <div className="console-line">
+                          Access: <span style={{ color: exploitResult.access_level === 'root' ? '#f85149' : '#f97316' }}>{exploitResult.access_level}</span>
+                        </div>
+                        <div className="console-line console-dim">Command: {exploitResult.command}</div>
+                        <pre className="console-pre">{exploitResult.output}</pre>
+                      </div>
+                    ) : (
+                      <div className="console-line console-error" style={{ marginTop: 4 }}>
+                        {exploitResult.message || 'No valid credentials found'}
+                      </div>
+                    )
+                  )}
                 </div>
               )}
 

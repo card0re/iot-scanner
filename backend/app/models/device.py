@@ -97,6 +97,46 @@ class Vulnerability(Base):
     device: Mapped["Device"] = relationship(back_populates="vulnerabilities")
 
 
+class ExploitStatus(str, enum.Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    SUCCESS = "success"
+    FAILED = "failed"
+
+
+class ExploitedDevice(Base):
+    __tablename__ = "exploited_devices"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_id: Mapped[int | None] = mapped_column(ForeignKey("devices.id"), index=True)
+    ip: Mapped[str] = mapped_column(String(45), index=True)
+    port: Mapped[int] = mapped_column(Integer)
+    protocol: Mapped[str] = mapped_column(String(20))  # ssh / telnet
+    username: Mapped[str] = mapped_column(String(255))
+    password: Mapped[str] = mapped_column(String(255))
+    proof_command: Mapped[str] = mapped_column(String(500), default="id")
+    command_output: Mapped[str | None] = mapped_column(Text)
+    access_level: Mapped[str] = mapped_column(String(20), default="unknown")  # root / user / unknown
+    status: Mapped[ExploitStatus] = mapped_column(
+        Enum(ExploitStatus), default=ExploitStatus.SUCCESS
+    )
+    device_type: Mapped[str | None] = mapped_column(String(50))
+    country_code: Mapped[str | None] = mapped_column(String(2))
+    banner: Mapped[str | None] = mapped_column(Text)
+    manufacturer: Mapped[str | None] = mapped_column(String(255))
+    model_name: Mapped[str | None] = mapped_column(String(255))
+    firmware_version: Mapped[str | None] = mapped_column(String(100))
+    vulnerability_score: Mapped[float | None] = mapped_column(Float)
+    org: Mapped[str | None] = mapped_column(String(255))
+    notes: Mapped[str | None] = mapped_column(Text)
+    verified_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    last_accessed: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+
+    device: Mapped["Device | None"] = relationship()
+
+
 class ScanJob(Base):
     __tablename__ = "scan_jobs"
 

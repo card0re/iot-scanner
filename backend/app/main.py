@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import devices, stats, scans, reports, proxy_browse, probe, terminal
+from app.api import devices, stats, scans, reports, proxy_browse, probe, terminal, exploited
 from app.database import Base, engine
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -25,6 +25,7 @@ app.include_router(reports.router, prefix="/api")
 app.include_router(proxy_browse.router, prefix="/api")
 app.include_router(probe.router, prefix="/api")
 app.include_router(terminal.router, prefix="/api")
+app.include_router(exploited.router, prefix="/api")
 
 
 @app.on_event("startup")
