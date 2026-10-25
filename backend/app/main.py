@@ -29,6 +29,7 @@ def on_startup():
     Base.metadata.create_all(bind=engine)
     from app.config import settings
     from app.collector import proxy_pool
+    proxy_pool.load()
     if settings.proxy_url:
         proxy_pool.add_proxies([settings.proxy_url])
 

@@ -7,3 +7,4 @@ dist/
 .vite/
 *.db
 .DS_Store
+backend/data/
