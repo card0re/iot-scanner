@@ -83,10 +83,10 @@ class ShodanCollector:
             except Exception:
                 pass
 
-    def collect_country(self, country_code: str) -> list[dict]:
+    def collect_country(self, country_code: str, exclude_ips: set[str] | None = None) -> list[dict]:
         if self.has_paid_key:
             return self._collect_via_search(country_code)
-        return self._collect_via_internetdb(country_code)
+        return self._collect_via_internetdb(country_code, exclude_ips=exclude_ips)
 
     def _collect_via_search(self, country_code: str) -> list[dict]:
         queries = [
@@ -105,7 +105,8 @@ class ShodanCollector:
                 _emit(f"[SHODAN] Search '{q}' skipped: {e}", "warn")
         return all_devices
 
-    def _collect_via_internetdb(self, country_code: str, sample_size: int = 500) -> list[dict]:
+    def _collect_via_internetdb(self, country_code: str, sample_size: int = 500,
+                                exclude_ips: set[str] | None = None) -> list[dict]:
         ranges = COUNTRY_RANGES.get(country_code, [])
         if not ranges:
             return []
@@ -115,8 +116,16 @@ class ShodanCollector:
             net = ipaddress.ip_network(cidr)
             all_ips.extend(net)
 
+        if exclude_ips:
+            all_ips = [ip for ip in all_ips if str(ip) not in exclude_ips]
+            _emit(f"[SHODAN] InternetDB: {len(exclude_ips)} known IPs excluded, {len(all_ips)} candidates remain ({country_code})")
+
+        if not all_ips:
+            _emit(f"[SHODAN] InternetDB: no new IPs to scan for {country_code}", "warn")
+            return []
+
         sampled = random.sample(all_ips, min(sample_size, len(all_ips)))
-        _emit(f"[SHODAN] InternetDB: sampling {len(sampled)} IPs from {len(all_ips)} total ({country_code})")
+        _emit(f"[SHODAN] InternetDB: sampling {len(sampled)} new IPs from {len(all_ips)} total ({country_code})")
 
         import threading
         devices = []

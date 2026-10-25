@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.collector.shodan_client import ShodanCollector
 from app.collector.verifier import verify_device
+from app.collector import proxy_pool
 from app.config import settings
 from app.models.device import Device, ScanJob, ScanStatus
 from app.ml.classifier import DeviceClassifier
@@ -26,8 +27,18 @@ def run_collection(db: Session):
     scorer = VulnerabilityScorer()
     cve_mapper = CVEMapper()
 
+    pool_size = proxy_pool.get_count()
+    if pool_size:
+        _emit(f"[PROXY] Using {pool_size} proxies ({proxy_pool.get_strategy()}) for verification")
+    else:
+        _emit("[PROXY] No proxies in pool — verification will use direct connections (may fail for RU/IR targets)", "warn")
+
+    known_ips = {row[0] for row in db.query(Device.ip).all()}
+    if known_ips:
+        _emit(f"[SCAN] {len(known_ips)} devices already in DB — scanning only new IPs")
+
     for country in settings.target_countries:
-        _collect_source(db, "shodan", country, classifier, scorer, cve_mapper)
+        _collect_source(db, "shodan", country, classifier, scorer, cve_mapper, known_ips)
     _emit("[CENSYS] Skipped — Censys Search API v2 decommissioned Sep 2026, Platform API requires paid org", "warn")
 
 
@@ -38,6 +49,7 @@ def _collect_source(
     classifier: DeviceClassifier,
     scorer: VulnerabilityScorer,
     cve_mapper: CVEMapper,
+    exclude_ips: set[str] | None = None,
 ):
     _emit(f"[{source.upper()}] Starting scan for country={country_code}")
 
@@ -52,7 +64,7 @@ def _collect_source(
 
     try:
         _emit(f"[{source.upper()}] Querying API for {country_code} IoT devices...")
-        raw_devices = ShodanCollector().collect_country(country_code)
+        raw_devices = ShodanCollector().collect_country(country_code, exclude_ips=exclude_ips)
 
         _emit(f"[{source.upper()}] Received {len(raw_devices)} raw results for {country_code}")
         _emit(f"[VERIFY] Starting liveness check on {len(raw_devices)} devices (10 parallel)...")

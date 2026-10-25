@@ -25,16 +25,39 @@ function getAliveWebUrl(d) {
   return getWebUrl(d.ip, d.port)
 }
 
-export default function DeviceTable({ devices, page, onPageChange, loading }) {
+export default function DeviceTable({ devices, page, perPage, onPageChange, onPerPageChange, search, onSearchChange, loading }) {
   const [selected, setSelected] = useState(null)
 
-  if (loading) return <div className="loading">Loading...</div>
-
-  const totalPages = Math.ceil(devices.total / 50)
+  const totalPages = Math.ceil(devices.total / (perPage || 50))
 
   return (
     <>
-      <table className="device-table">
+      <div className="device-toolbar">
+        <div className="device-toolbar-left">
+          <span className="device-total-badge">{devices.total} devices</span>
+          <input
+            type="text"
+            className="device-search"
+            placeholder="Search IP, manufacturer, org..."
+            value={search || ''}
+            onChange={e => onSearchChange?.(e.target.value)}
+          />
+        </div>
+        <div className="device-toolbar-right">
+          <label className="device-per-page">
+            <select value={perPage || 50} onChange={e => onPerPageChange?.(Number(e.target.value))}>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span>/ page</span>
+          </label>
+        </div>
+      </div>
+
+      {loading && <div className="loading">Loading...</div>}
+
+      <table className="device-table" style={{ display: loading ? 'none' : undefined }}>
         <thead>
           <tr>
             <th>Status</th>
@@ -122,9 +145,23 @@ export default function DeviceTable({ devices, page, onPageChange, loading }) {
 
       {totalPages > 1 && (
         <div className="pagination">
-          <button disabled={page <= 1} onClick={() => onPageChange(page - 1)}>Previous</button>
-          <span style={{ padding: '8px 16px', color: '#8b8d98' }}>{page} / {totalPages}</span>
-          <button disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next</button>
+          <button disabled={page <= 1} onClick={() => onPageChange(1)} title="First">&laquo;</button>
+          <button disabled={page <= 1} onClick={() => onPageChange(page - 1)}>&lsaquo; Prev</button>
+          {(() => {
+            const pages = []
+            let start = Math.max(1, page - 2)
+            let end = Math.min(totalPages, page + 2)
+            if (start > 1) pages.push(<span key="ds" className="page-dots">...</span>)
+            for (let i = start; i <= end; i++) {
+              pages.push(
+                <button key={i} className={i === page ? 'page-active' : ''} onClick={() => onPageChange(i)}>{i}</button>
+              )
+            }
+            if (end < totalPages) pages.push(<span key="de" className="page-dots">...</span>)
+            return pages
+          })()}
+          <button disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next &rsaquo;</button>
+          <button disabled={page >= totalPages} onClick={() => onPageChange(totalPages)} title="Last">&raquo;</button>
         </div>
       )}
     </>

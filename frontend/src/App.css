@@ -713,23 +713,95 @@ body {
 .severity-medium { background: rgba(234,179,8,0.15); color: var(--medium); }
 .severity-low { background: rgba(34,197,94,0.15); color: var(--low); }
 
+/* ===== DEVICE TOOLBAR ===== */
+.device-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.device-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.device-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.device-total-badge {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.device-search {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: var(--text);
+  font-size: 0.85rem;
+  width: 260px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.device-search:focus { border-color: var(--accent); }
+.device-search::placeholder { color: var(--text-dim); }
+.device-per-page {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.device-per-page select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+/* ===== PAGINATION ===== */
 .pagination {
   display: flex;
   justify-content: center;
-  gap: 8px;
+  align-items: center;
+  gap: 4px;
   margin-top: 16px;
 }
 .pagination button {
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 8px 16px;
+  padding: 6px 12px;
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.15s;
+  font-size: 0.85rem;
 }
 .pagination button:hover:not(:disabled) { background: var(--surface-2); }
 .pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+.pagination button.page-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.page-dots {
+  padding: 6px 4px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
 
 .loading {
   text-align: center;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { fetchStats, fetchDevices } from './api/client'
 import ScanPanel from './components/ScanPanel'
 import StatsCards from './components/StatsCards'
@@ -9,10 +9,20 @@ import './App.css'
 export default function App() {
   const [stats, setStats] = useState(null)
   const [devices, setDevices] = useState({ items: [], total: 0 })
-  const [filters, setFilters] = useState({ page: 1, country_code: '', device_type: '', min_score: '' })
+  const [filters, setFilters] = useState({ page: 1, per_page: 50, country_code: '', device_type: '', min_score: '', search: '' })
+  const [searchInput, setSearchInput] = useState('')
   const [loading, setLoading] = useState(true)
+  const searchTimer = useRef(null)
 
   useEffect(() => { loadData() }, [filters])
+
+  const handleSearch = useCallback((s) => {
+    setSearchInput(s)
+    clearTimeout(searchTimer.current)
+    searchTimer.current = setTimeout(() => {
+      setFilters(f => ({ ...f, search: s, page: 1 }))
+    }, 400)
+  }, [])
 
   async function loadData() {
     setLoading(true)
@@ -73,7 +83,11 @@ export default function App() {
       <DeviceTable
         devices={devices}
         page={filters.page}
+        perPage={filters.per_page}
+        search={searchInput}
         onPageChange={p => setFilters(f => ({ ...f, page: p }))}
+        onPerPageChange={n => setFilters(f => ({ ...f, per_page: n, page: 1 }))}
+        onSearchChange={handleSearch}
         loading={loading}
       />
     </div>
