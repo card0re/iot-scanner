@@ -117,6 +117,7 @@ def get_proxy():
         "proxies": proxy_pool.get_all(),
         "count": proxy_pool.get_count(),
         "strategy": proxy_pool.get_strategy(),
+        "stats": proxy_pool.get_stats(),
     }
 
 

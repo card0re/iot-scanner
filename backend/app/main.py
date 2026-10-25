@@ -33,9 +33,12 @@ def on_startup():
     Base.metadata.create_all(bind=engine)
     from app.config import settings
     from app.collector import proxy_pool
+    from app.collector import proxy_scraper
     proxy_pool.load()
+    proxy_pool.purge_dead()
     if settings.proxy_url:
         proxy_pool.add_proxies([settings.proxy_url])
+    proxy_scraper.start_daemon(interval=300)
 
 
 @app.get("/api/health")
