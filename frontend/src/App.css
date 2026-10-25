@@ -937,8 +937,31 @@ body {
   font-size: 0.72rem;
 }
 
+.filter-toggle-exploited {
+  background: rgba(63, 185, 80, 0.08);
+  border: 1px solid rgba(63, 185, 80, 0.25);
+  border-radius: 6px;
+  padding: 4px 10px;
+}
 .filter-toggle-exploited span {
   color: #3fb950;
+  font-weight: 600;
+}
+.filter-toggle-exploited input:checked + span {
+  text-shadow: 0 0 8px rgba(63, 185, 80, 0.4);
+}
+
+.exploited-count-badge {
+  display: inline-block;
+  background: #3fb950;
+  color: #0f1117;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  min-width: 18px;
+  text-align: center;
 }
 
 .title-cell {

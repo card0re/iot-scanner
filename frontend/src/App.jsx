@@ -51,7 +51,7 @@ export default function App() {
             Devices
           </button>
           <button className={`header-tab ${tab === 'exploited' ? 'header-tab-active' : ''}`} onClick={() => setTab('exploited')}>
-            Exploited
+            Exploited {Object.keys(exploitedIps).length > 0 && <span className="exploited-count-badge">{Object.keys(exploitedIps).length}</span>}
           </button>
         </nav>
       </header>

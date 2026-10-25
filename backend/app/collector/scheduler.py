@@ -76,7 +76,7 @@ def _collect_source(
         alive_count = 0
         vulns_count = 0
 
-        VERIFY_BATCH = 10
+        VERIFY_BATCH = 25
 
         for batch_start in range(0, len(raw_devices), VERIFY_BATCH):
             batch = raw_devices[batch_start:batch_start + VERIFY_BATCH]

@@ -111,21 +111,15 @@ class ShodanCollector:
         if not ranges:
             return []
 
-        all_ips = []
-        for cidr in ranges:
-            net = ipaddress.ip_network(cidr)
-            all_ips.extend(net)
+        networks = [ipaddress.ip_network(cidr) for cidr in ranges]
+        total_ips = sum(net.num_addresses for net in networks)
 
-        if exclude_ips:
-            all_ips = [ip for ip in all_ips if str(ip) not in exclude_ips]
-            _emit(f"[SHODAN] InternetDB: {len(exclude_ips)} known IPs excluded, {len(all_ips)} candidates remain ({country_code})")
-
-        if not all_ips:
+        sampled = self._sample_ips(networks, total_ips, sample_size, exclude_ips or set())
+        if not sampled:
             _emit(f"[SHODAN] InternetDB: no new IPs to scan for {country_code}", "warn")
             return []
 
-        sampled = random.sample(all_ips, min(sample_size, len(all_ips)))
-        _emit(f"[SHODAN] InternetDB: sampling {len(sampled)} new IPs from {len(all_ips)} total ({country_code})")
+        _emit(f"[SHODAN] InternetDB: sampling {len(sampled)} IPs from ~{total_ips} total ({country_code})")
 
         import threading
         devices = []
@@ -134,20 +128,47 @@ class ShodanCollector:
 
         def _check_ip(ip):
             nonlocal checked
-            data = self._query_internetdb(str(ip))
+            data = self._query_internetdb(ip)
             with lock:
                 checked += 1
                 if data and data.get("ports"):
                     iot_ports = set(data["ports"]) & IOT_PORTS
                     if iot_ports:
                         devices.append(self._normalize_internetdb(data, country_code))
-                if checked % 50 == 0 or checked == len(sampled):
+                if checked % 25 == 0 or checked == len(sampled):
                     _emit(f"[SHODAN] InternetDB {country_code}: checked {checked}/{len(sampled)}, found {len(devices)} IoT devices")
 
-        with ThreadPoolExecutor(max_workers=30) as pool:
+        with ThreadPoolExecutor(max_workers=60) as pool:
             list(pool.map(_check_ip, sampled))
 
         return devices
+
+    @staticmethod
+    def _sample_ips(networks: list, total_ips: int, sample_size: int, exclude_ips: set[str]) -> list[str]:
+        """Pick random IPs without materializing all addresses."""
+        cum_sizes = []
+        cum = 0
+        for net in networks:
+            cum += net.num_addresses
+            cum_sizes.append(cum)
+
+        need = min(sample_size * 3, total_ips)
+        indices = set()
+        while len(indices) < need:
+            indices.update(random.sample(range(total_ips), min(need - len(indices), total_ips)))
+
+        result = []
+        for idx in sorted(indices):
+            for i, cum in enumerate(cum_sizes):
+                if idx < cum:
+                    offset = idx - (cum_sizes[i - 1] if i > 0 else 0)
+                    ip_str = str(networks[i].network_address + offset)
+                    if ip_str not in exclude_ips:
+                        result.append(ip_str)
+                    break
+            if len(result) >= sample_size:
+                break
+        return result[:sample_size]
 
     def _query_internetdb(self, ip: str) -> dict | None:
         try:
