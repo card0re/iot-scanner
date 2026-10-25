@@ -10,19 +10,27 @@ function scoreClass(score) {
 
 const WEB_PORTS = new Set([80, 443, 8080, 8443, 8888, 8000, 8081, 9090, 3000, 4443])
 
-function getWebUrl(ip, port) {
+function getProxyUrl(ip, port) {
   if (!WEB_PORTS.has(port)) return null
-  const proto = [443, 8443, 4443].includes(port) ? 'https' : 'http'
-  const portPart = (proto === 'http' && port === 80) || (proto === 'https' && port === 443) ? '' : `:${port}`
-  return `${proto}://${ip}${portPart}`
+  const scheme = [443, 8443, 4443].includes(port) ? 'https' : 'http'
+  return `/api/proxy/${scheme}/${ip}/${port}/`
 }
 
 function getAliveWebUrl(d) {
   const alivePorts = d.alive_ports || []
   for (const p of alivePorts) {
-    if (WEB_PORTS.has(p)) return getWebUrl(d.ip, p)
+    const url = getProxyUrl(d.ip, p)
+    if (url) return url
   }
-  return getWebUrl(d.ip, d.port)
+  return getProxyUrl(d.ip, d.port)
+}
+
+function getAllWebUrls(d) {
+  const alivePorts = d.alive_ports || []
+  return alivePorts
+    .filter(p => WEB_PORTS.has(p))
+    .map(p => getProxyUrl(d.ip, p))
+    .filter(Boolean)
 }
 
 export default function DeviceTable({ devices, page, perPage, onPageChange, onPerPageChange, search, onSearchChange, loading }) {
@@ -100,8 +108,8 @@ export default function DeviceTable({ devices, page, perPage, onPageChange, onPe
                 </td>
                 <td>{d.vulnerabilities?.length || 0}</td>
                 <td className="actions-cell">
-                  {alive && webUrl && (
-                    <a href={webUrl} target="_blank" rel="noopener noreferrer" className="btn-action btn-open" title="Open web interface">
+                  {webUrl && (
+                    <a href={webUrl} target="_blank" rel="noopener noreferrer" className="btn-action btn-open" title="Open via proxy">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
                       </svg>
@@ -114,21 +122,16 @@ export default function DeviceTable({ devices, page, perPage, onPageChange, onPe
                     </svg>
                     Info
                   </button>
-                  {alive && alivePorts.some(p => WEB_PORTS.has(p)) && (
+                  {getAllWebUrls(d).length > 1 && (
                     <button
                       className="btn-action btn-ports"
-                      onClick={() => {
-                        alivePorts
-                          .filter(p => WEB_PORTS.has(p))
-                          .map(p => getWebUrl(d.ip, p))
-                          .forEach(u => window.open(u, '_blank'))
-                      }}
-                      title="Open all live web ports"
+                      onClick={() => getAllWebUrls(d).forEach(u => window.open(u, '_blank'))}
+                      title="Open all live web ports via proxy"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
                       </svg>
-                      Browse
+                      All Ports
                     </button>
                   )}
                 </td>

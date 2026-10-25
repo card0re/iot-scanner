@@ -20,19 +20,23 @@ export default function DeviceDetail({ device, onClose }) {
   const d = device
   const allPorts = d.open_ports || [d.port]
 
+  function proxyUrl(ip, port) {
+    const scheme = [443, 8443, 4443].includes(port) ? 'https' : 'http'
+    return `/api/proxy/${scheme}/${ip}/${port}/`
+  }
+
   async function quickCheck() {
     setChecking(true)
     setCheckResult(null)
     const results = []
     for (const port of allPorts.slice(0, 10)) {
-      const proto = [443, 8443, 4443].includes(port) ? 'https' : 'http'
-      const url = `${proto}://${d.ip}:${port}`
+      const url = proxyUrl(d.ip, port)
       try {
         const ctrl = new AbortController()
-        const tid = setTimeout(() => ctrl.abort(), 4000)
-        const r = await fetch(url, { mode: 'no-cors', signal: ctrl.signal })
+        const tid = setTimeout(() => ctrl.abort(), 12000)
+        const r = await fetch(url, { signal: ctrl.signal })
         clearTimeout(tid)
-        results.push({ port, status: 'reachable', service: SERVICE_PORTS[port] || '?' })
+        results.push({ port, status: r.ok ? 'reachable' : 'error', service: SERVICE_PORTS[port] || '?' })
       } catch {
         results.push({ port, status: 'timeout', service: SERVICE_PORTS[port] || '?' })
       }
@@ -91,13 +95,12 @@ export default function DeviceDetail({ device, onClose }) {
           <div className="port-list">
             {allPorts.map(p => {
               const isWeb = WEB_PORTS.has(p)
-              const proto = [443, 8443, 4443].includes(p) ? 'https' : 'http'
               return (
                 <div key={p} className="port-chip">
                   <span className="port-num">{p}</span>
                   <span className="port-svc">{SERVICE_PORTS[p] || '?'}</span>
                   {isWeb && (
-                    <a href={`${proto}://${d.ip}:${p}`} target="_blank" rel="noopener noreferrer" className="port-link" title={`Open ${proto}://${d.ip}:${p}`}>
+                    <a href={proxyUrl(d.ip, p)} target="_blank" rel="noopener noreferrer" className="port-link" title={`Open via proxy :${p}`}>
                       &rarr;
                     </a>
                   )}
