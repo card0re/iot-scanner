@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import DeviceDetail from './DeviceDetail'
+import DeviceConsole from './DeviceConsole'
 
 function scoreClass(score) {
   if (score >= 50) return 'severity-critical'
@@ -35,6 +36,7 @@ function getAllWebUrls(d) {
 
 export default function DeviceTable({ devices, page, perPage, onPageChange, onPerPageChange, search, onSearchChange, loading }) {
   const [selected, setSelected] = useState(null)
+  const [consoleIp, setConsoleIp] = useState(null)
 
   const totalPages = Math.ceil(devices.total / (perPage || 50))
 
@@ -108,32 +110,20 @@ export default function DeviceTable({ devices, page, perPage, onPageChange, onPe
                 </td>
                 <td>{d.vulnerabilities?.length || 0}</td>
                 <td className="actions-cell">
+                  <button className="btn-action btn-console" onClick={() => setConsoleIp(d.ip)} title="Open console">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+                    </svg>
+                    Console
+                  </button>
                   {webUrl && (
-                    <a href={webUrl} target="_blank" rel="noopener noreferrer" className="btn-action btn-open" title="Open via proxy">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                      </svg>
+                    <a href={webUrl} target="_blank" rel="noopener noreferrer" className="btn-action btn-open" title="Open web UI">
                       Open
                     </a>
                   )}
                   <button className="btn-action btn-details" onClick={() => setSelected(selected?.id === d.id ? null : d)} title="View details">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-                    </svg>
                     Info
                   </button>
-                  {getAllWebUrls(d).length > 1 && (
-                    <button
-                      className="btn-action btn-ports"
-                      onClick={() => getAllWebUrls(d).forEach(u => window.open(u, '_blank'))}
-                      title="Open all live web ports via proxy"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-                      </svg>
-                      All Ports
-                    </button>
-                  )}
                 </td>
               </tr>
             )
@@ -145,6 +135,7 @@ export default function DeviceTable({ devices, page, perPage, onPageChange, onPe
       </table>
 
       {selected && <DeviceDetail device={selected} onClose={() => setSelected(null)} />}
+      {consoleIp && <DeviceConsole ip={consoleIp} onClose={() => setConsoleIp(null)} />}
 
       {totalPages > 1 && (
         <div className="pagination">

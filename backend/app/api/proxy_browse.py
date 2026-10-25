@@ -23,59 +23,51 @@ def _get_proxy_url() -> str | None:
     return prx["url"] if prx else None
 
 
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+
 async def _fetch_with_retry(method: str, target_url: str, body: bytes | None,
                              max_retries: int = MAX_RETRIES) -> httpx.Response:
-    last_exc = None
-    tried_proxies = set()
-
-    for attempt in range(max_retries):
-        proxy_url = _get_proxy_url()
-        if proxy_url and proxy_url in tried_proxies:
-            proxy_url = _get_proxy_url()
-        if proxy_url:
-            tried_proxies.add(proxy_url)
-
-        try:
-            async with httpx.AsyncClient(
-                proxy=proxy_url,
-                verify=False,
-                timeout=TIMEOUT,
-                follow_redirects=True,
-                limits=httpx.Limits(max_connections=5),
-            ) as client:
-                resp = await client.request(
-                    method,
-                    target_url,
-                    content=body,
-                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
-                )
-                if resp.status_code == 400 and proxy_url:
-                    proxy_pool.mark_proxy(proxy_url, False)
-                    continue
-                if proxy_url:
-                    proxy_pool.mark_proxy(proxy_url, True)
-                return resp
-        except (httpx.TimeoutException, httpx.ConnectError, httpx.ProxyError) as e:
-            if proxy_url:
-                proxy_pool.mark_proxy(proxy_url, False)
-            last_exc = e
-            continue
-        except Exception as e:
-            last_exc = e
-            break
-
     try:
         async with httpx.AsyncClient(
             verify=False, timeout=TIMEOUT, follow_redirects=True,
         ) as client:
             return await client.request(
-                method, target_url, content=body,
-                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+                method, target_url, content=body, headers={"User-Agent": UA},
             )
-    except Exception:
+    except (httpx.TimeoutException, httpx.ConnectError) as direct_exc:
         pass
 
-    raise last_exc or Exception("All proxy attempts failed")
+    last_exc = None
+    tried_proxies = set()
+    for attempt in range(max_retries):
+        proxy_url = _get_proxy_url()
+        if proxy_url and proxy_url in tried_proxies:
+            proxy_url = _get_proxy_url()
+        if not proxy_url:
+            break
+        tried_proxies.add(proxy_url)
+        try:
+            async with httpx.AsyncClient(
+                proxy=proxy_url, verify=False, timeout=TIMEOUT,
+                follow_redirects=True, limits=httpx.Limits(max_connections=5),
+            ) as client:
+                resp = await client.request(
+                    method, target_url, content=body, headers={"User-Agent": UA},
+                )
+                if resp.status_code == 400:
+                    proxy_pool.mark_proxy(proxy_url, False)
+                    continue
+                proxy_pool.mark_proxy(proxy_url, True)
+                return resp
+        except (httpx.TimeoutException, httpx.ConnectError, httpx.ProxyError) as e:
+            proxy_pool.mark_proxy(proxy_url, False)
+            last_exc = e
+        except Exception as e:
+            last_exc = e
+            break
+
+    raise last_exc or direct_exc
 
 
 def _lookup_device(ip: str) -> dict | None:
