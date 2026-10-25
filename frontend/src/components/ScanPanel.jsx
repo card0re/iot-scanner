@@ -5,7 +5,6 @@ export default function ScanPanel({ onScanComplete }) {
   const [status, setStatus] = useState(null)
   const [logs, setLogs] = useState([])
   const [elapsed, setElapsed] = useState(0)
-  const logEndRef = useRef(null)
   const timerRef = useRef(null)
   const pollRef = useRef(null)
 
@@ -32,8 +31,11 @@ export default function ScanPanel({ onScanComplete }) {
     }
   }, [])
 
+  const logContainerRef = useRef(null)
+
   useEffect(() => {
-    if (logEndRef.current) logEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    const container = logContainerRef.current
+    if (container) container.scrollTop = container.scrollHeight
   }, [logs])
 
   async function loadProxies() {
@@ -414,7 +416,7 @@ export default function ScanPanel({ onScanComplete }) {
       )}
 
       {(active || logs.length > 0) && (
-        <div className="scan-log">
+        <div className="scan-log" ref={logContainerRef}>
           {logs.map((l, i) => (
             <div key={i} className={`log-line log-${l.level} ${i === logs.length - 1 ? 'log-latest' : ''}`}>
               <span className="log-time">{new Date(l.time).toLocaleTimeString()}</span>
@@ -427,7 +429,6 @@ export default function ScanPanel({ onScanComplete }) {
               <span className="blink-cursor">_</span>
             </div>
           )}
-          <div ref={logEndRef} />
         </div>
       )}
 

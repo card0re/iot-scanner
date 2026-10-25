@@ -1,6 +1,7 @@
 import logging
 import ipaddress
 import random
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import httpx
 import shodan
@@ -117,18 +118,25 @@ class ShodanCollector:
         sampled = random.sample(all_ips, min(sample_size, len(all_ips)))
         _emit(f"[SHODAN] InternetDB: sampling {len(sampled)} IPs from {len(all_ips)} total ({country_code})")
 
+        import threading
         devices = []
-        batch_size = 50
-        for i in range(0, len(sampled), batch_size):
-            batch = sampled[i:i + batch_size]
-            for ip in batch:
-                data = self._query_internetdb(str(ip))
+        checked = 0
+        lock = threading.Lock()
+
+        def _check_ip(ip):
+            nonlocal checked
+            data = self._query_internetdb(str(ip))
+            with lock:
+                checked += 1
                 if data and data.get("ports"):
                     iot_ports = set(data["ports"]) & IOT_PORTS
                     if iot_ports:
                         devices.append(self._normalize_internetdb(data, country_code))
+                if checked % 50 == 0 or checked == len(sampled):
+                    _emit(f"[SHODAN] InternetDB {country_code}: checked {checked}/{len(sampled)}, found {len(devices)} IoT devices")
 
-            _emit(f"[SHODAN] InternetDB {country_code}: checked {min(i + batch_size, len(sampled))}/{len(sampled)}, found {len(devices)} IoT devices")
+        with ThreadPoolExecutor(max_workers=30) as pool:
+            list(pool.map(_check_ip, sampled))
 
         return devices
 

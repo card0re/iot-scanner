@@ -1,5 +1,6 @@
 import datetime
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from sqlalchemy.orm import Session
 
@@ -54,46 +55,56 @@ def _collect_source(
         raw_devices = ShodanCollector().collect_country(country_code)
 
         _emit(f"[{source.upper()}] Received {len(raw_devices)} raw results for {country_code}")
-        _emit(f"[VERIFY] Starting liveness check on {len(raw_devices)} devices...")
+        _emit(f"[VERIFY] Starting liveness check on {len(raw_devices)} devices (10 parallel)...")
 
         devices_count = 0
         alive_count = 0
         vulns_count = 0
 
-        for i, raw in enumerate(raw_devices):
-            ports = raw.get("open_ports") or [raw.get("port", 80)]
-            check = verify_device(raw["ip"], ports)
+        VERIFY_BATCH = 10
 
-            device = _upsert_device(db, raw)
-            device.is_alive = check["is_alive"]
-            device.alive_ports = check["alive_ports"]
-            device.http_title = check["http_title"]
-            device.last_checked = check["last_checked"]
+        for batch_start in range(0, len(raw_devices), VERIFY_BATCH):
+            batch = raw_devices[batch_start:batch_start + VERIFY_BATCH]
 
-            device_type, confidence = classifier.predict(raw)
-            device.device_type = device_type
-            device.device_type_confidence = confidence
+            def _verify_one(raw):
+                ports = raw.get("open_ports") or [raw.get("port", 80)]
+                return raw, verify_device(raw["ip"], ports)
 
-            vulns = cve_mapper.map_device(raw)
-            for v in vulns:
-                v.device_id = device.id
-                db.merge(v)
-            vulns_count += len(vulns)
+            with ThreadPoolExecutor(max_workers=VERIFY_BATCH) as pool:
+                futures = [pool.submit(_verify_one, raw) for raw in batch]
+                batch_results = [f.result() for f in futures]
 
-            device.vulnerability_score = scorer.score(device, vulns)
-            devices_count += 1
-            if check["is_alive"]:
-                alive_count += 1
+            for raw, check in batch_results:
+                device = _upsert_device(db, raw)
+                device.is_alive = check["is_alive"]
+                device.alive_ports = check["alive_ports"]
+                device.http_title = check["http_title"]
+                device.last_checked = check["last_checked"]
 
-            if (i + 1) % 5 == 0 or i == len(raw_devices) - 1:
-                db.commit()
-                title_info = f' — "{check["http_title"]}"' if check["http_title"] else ""
-                status = "ALIVE" if check["is_alive"] else "dead"
-                _emit(
-                    f"[VERIFY] {country_code} [{i + 1}/{len(raw_devices)}] "
-                    f"{raw['ip']} → {status} ({len(check['alive_ports'])} ports){title_info} "
-                    f"| total alive: {alive_count}/{devices_count}"
-                )
+                device_type, confidence = classifier.predict(raw)
+                device.device_type = device_type
+                device.device_type_confidence = confidence
+
+                vulns = cve_mapper.map_device(raw)
+                for v in vulns:
+                    v.device_id = device.id
+                    db.merge(v)
+                vulns_count += len(vulns)
+
+                device.vulnerability_score = scorer.score(device, vulns)
+                devices_count += 1
+                if check["is_alive"]:
+                    alive_count += 1
+
+            db.commit()
+            last_raw, last_check = batch_results[-1]
+            title_info = f' — "{last_check["http_title"]}"' if last_check["http_title"] else ""
+            status = "ALIVE" if last_check["is_alive"] else "dead"
+            _emit(
+                f"[VERIFY] {country_code} [{devices_count}/{len(raw_devices)}] "
+                f"{last_raw['ip']} → {status} ({len(last_check['alive_ports'])} ports){title_info} "
+                f"| total alive: {alive_count}/{devices_count}"
+            )
 
         job.status = ScanStatus.COMPLETED
         job.devices_found = devices_count

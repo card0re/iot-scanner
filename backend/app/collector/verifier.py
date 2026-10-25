@@ -2,6 +2,7 @@ import datetime
 import logging
 import re
 import socket
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 
 import httpx
@@ -74,14 +75,19 @@ def grab_http_title(ip: str, port: int) -> str | None:
 
 
 def verify_device(ip: str, ports: list[int]) -> dict:
-    alive_ports = []
-    http_title = None
+    target_ports = ports[:15]
 
-    for port in ports[:15]:
-        if check_port(ip, port):
-            alive_ports.append(port)
-            if port in HTTP_PORTS and http_title is None:
-                http_title = grab_http_title(ip, port)
+    with ThreadPoolExecutor(max_workers=min(len(target_ports), 10)) as pool:
+        results = list(pool.map(lambda p: (p, check_port(ip, p)), target_ports))
+
+    alive_ports = [p for p, alive in results if alive]
+
+    http_title = None
+    for port in alive_ports:
+        if port in HTTP_PORTS:
+            http_title = grab_http_title(ip, port)
+            if http_title:
+                break
 
     return {
         "is_alive": len(alive_ports) > 0,
