@@ -64,6 +64,17 @@ async def _fetch_with_retry(method: str, target_url: str, body: bytes | None,
             last_exc = e
             break
 
+    try:
+        async with httpx.AsyncClient(
+            verify=False, timeout=TIMEOUT, follow_redirects=True,
+        ) as client:
+            return await client.request(
+                method, target_url, content=body,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+            )
+    except Exception:
+        pass
+
     raise last_exc or Exception("All proxy attempts failed")
 
 
