@@ -208,18 +208,18 @@ def _rewrite_html(body: str, base_path: str, target_origin: str, host: str, port
     body = body.replace(target_origin + '"', base_path + '"')
     body = body.replace(target_origin + "'", base_path + "'")
 
-    def _rewrite_abs_url(m):
-        s = m.group(1)
-        h = m.group(2)
-        p = m.group(3) or ("443" if s == "https" else "80")
-        pth = m.group(4) or ""
-        return f'{base_path.rsplit("/", 2)[0]}/{s}/{h}/{p}/{pth}'
-
     body = re.sub(
         rf'https?://{re.escape(host)}(?::(\d+))?(/[^\s"\'<>]*)?',
         lambda m: f'/api/proxy/{"https" if m.group(0).startswith("https") else "http"}/{host}/{m.group(1) or port}/{(m.group(2) or "/").lstrip("/")}',
         body,
     )
+
+    bp = base_path
+    body = re.sub(r'(src|href|action)\s*=\s*"(/(?!api/proxy/)[^"]*)"', rf'\1="{bp}\2"', body)
+    body = re.sub(r"(src|href|action)\s*=\s*'(/(?!api/proxy/)[^']*)'", rf"\1='{bp}\2'", body)
+
+    body = body.replace('.p="/"', f'.p="{bp}/"')
+    body = body.replace(".p='/'", f".p='{bp}/'")
 
     return body
 
@@ -259,7 +259,10 @@ async def proxy_browse(scheme: str, host: str, port: int, path: str, request: Re
     content_type = resp.headers.get("content-type", "")
     response_body = resp.content
 
-    if "text/html" in content_type:
+    is_html = "text/html" in content_type
+    is_js = any(t in content_type for t in ("javascript", "ecmascript"))
+
+    if is_html or is_js:
         try:
             charset = "utf-8"
             ct_lower = content_type.lower()
@@ -267,14 +270,21 @@ async def proxy_browse(scheme: str, host: str, port: int, path: str, request: Re
                 charset = ct_lower.split("charset=")[-1].split(";")[0].strip()
             text = response_body.decode(charset, errors="replace")
 
-            info_bar = ""
-            is_page = not path or path in ("", "/", "index.html", "index.htm")
-            if is_page:
-                device = _lookup_device(host)
-                if device:
-                    info_bar = _build_info_bar(device, host, port, scheme, base_path)
+            if is_html:
+                info_bar = ""
+                is_page = not path or path in ("", "/", "index.html", "index.htm")
+                if is_page:
+                    device = _lookup_device(host)
+                    if device:
+                        info_bar = _build_info_bar(device, host, port, scheme, base_path)
+                text = _rewrite_html(text, base_path, target_origin, host, port, info_bar)
+            else:
+                text = text.replace('.p="/"', f'.p="{base_path}/"')
+                text = text.replace(".p='/'", f".p='{base_path}/'")
+                text = text.replace(target_origin + "/", base_path + "/")
+                text = text.replace(target_origin + '"', base_path + '"')
+                text = text.replace(target_origin + "'", base_path + "'")
 
-            text = _rewrite_html(text, base_path, target_origin, host, port, info_bar)
             response_body = text.encode(charset, errors="replace")
         except Exception:
             pass
