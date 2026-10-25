@@ -8,6 +8,7 @@ import re
 import socket
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
 
 import httpx
@@ -71,7 +72,7 @@ SOURCES = [
     },
 ]
 
-VERIFY_TIMEOUT = 6
+VERIFY_TIMEOUT = 4
 MAX_FAIL_BEFORE_PURGE = 3
 
 _scraper_thread: threading.Thread | None = None
@@ -201,11 +202,15 @@ def _purge_dead():
     return removed
 
 
+VERIFY_WORKERS = 20
+SCRAPE_WORKERS = 5
+
+
 def run_scrape_cycle() -> dict:
     global _last_run_info
 
     _set_progress(
-        active=True, phase="scraping", current_source="",
+        active=True, phase="scraping", current_source="(parallel)",
         sources_done=0, sources_total=len(SOURCES),
         candidates_found=0, verify_current=0, verify_total=0,
         verified_alive=0, verified_failed=0, purged=0,
@@ -214,13 +219,24 @@ def run_scrape_cycle() -> dict:
 
     candidates = set()
     source_stats = {}
+    sources_done = 0
 
-    for i, src in enumerate(SOURCES):
-        _set_progress(current_source=src["name"], sources_done=i)
-        found = _fetch_source(src)
-        source_stats[src["name"]] = len(found)
-        candidates.update(found)
-        _set_progress(candidates_found=len(candidates), sources_done=i + 1)
+    with ThreadPoolExecutor(max_workers=SCRAPE_WORKERS) as pool:
+        future_map = {pool.submit(_fetch_source, src): src for src in SOURCES}
+        for future in as_completed(future_map):
+            src = future_map[future]
+            try:
+                found = future.result()
+            except Exception:
+                found = []
+            source_stats[src["name"]] = len(found)
+            candidates.update(found)
+            sources_done += 1
+            _set_progress(
+                current_source=src["name"],
+                sources_done=sources_done,
+                candidates_found=len(candidates),
+            )
 
     existing = {p["url"] for p in proxy_pool.get_all()}
     new_candidates = [u for u in candidates if u not in existing]
@@ -229,20 +245,34 @@ def run_scrape_cycle() -> dict:
 
     verified = 0
     failed = 0
+    done_count = 0
     recent_adds = []
-    for j, url in enumerate(new_candidates):
-        _set_progress(verify_current=j + 1)
-        if _verify_proxy(url):
-            proxy_pool.add_proxies([url])
-            proxy_pool.mark_proxy(url, True)
-            verified += 1
-            recent_adds.append(url)
-            if len(recent_adds) > 30:
-                recent_adds.pop(0)
-            _set_progress(verified_alive=verified, pool_size=proxy_pool.get_count(), recent_adds=list(recent_adds))
-        else:
-            failed += 1
-            _set_progress(verified_failed=failed)
+    lock = threading.Lock()
+
+    def _check(url):
+        nonlocal verified, failed, done_count, recent_adds
+        alive = _verify_proxy(url)
+        with lock:
+            done_count += 1
+            if alive:
+                proxy_pool.add_proxies([url])
+                proxy_pool.mark_proxy(url, True)
+                verified += 1
+                recent_adds.append(url)
+                if len(recent_adds) > 30:
+                    recent_adds.pop(0)
+            else:
+                failed += 1
+            _set_progress(
+                verify_current=done_count,
+                verified_alive=verified,
+                verified_failed=failed,
+                pool_size=proxy_pool.get_count(),
+                recent_adds=list(recent_adds),
+            )
+
+    with ThreadPoolExecutor(max_workers=VERIFY_WORKERS) as pool:
+        list(pool.map(_check, new_candidates))
 
     _set_progress(phase="purging")
     purged = _purge_dead()
