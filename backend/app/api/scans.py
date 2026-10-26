@@ -112,6 +112,80 @@ def trigger_scan(req: ScanRequest, db: Session = Depends(get_db)):
     return {"status": "started", "message": "Collection job triggered in background"}
 
 
+_mega_scan_active = False
+_mega_scan_progress: dict = {
+    "phase": "", "ips_scanned": 0, "devices_found": 0,
+    "countries_done": [], "active": False,
+}
+
+
+@router.post("/mega-telnet-scan")
+def mega_telnet_scan():
+    """Massive Telnet-focused scan: 20k IPs per country, ports 23/2323 only."""
+    global _mega_scan_active
+    if _mega_scan_active:
+        return {"status": "already_running", "progress": dict(_mega_scan_progress)}
+
+    def _run_mega():
+        global _mega_scan_active
+        _mega_scan_active = True
+        _mega_scan_progress.update(
+            phase="scanning", ips_scanned=0, devices_found=0,
+            countries_done=[], active=True,
+        )
+
+        from app.collector.direct_scanner import direct_scan
+        from app.models.device import Device, ScanJob, ScanStatus
+        from app.ml.classifier import DeviceClassifier
+        from app.ml.cve_mapper import CVEMapper
+        from app.ml.vulnerability_scorer import VulnerabilityScorer
+        from app.collector.scheduler import _ingest_raw_devices
+
+        classifier = DeviceClassifier()
+        scorer = VulnerabilityScorer()
+        cve_mapper = CVEMapper()
+
+        with SessionLocal() as session:
+            known_ips = {row[0] for row in session.query(Device.ip).all()}
+
+            for country in ["IR", "RU"]:
+                _mega_scan_progress["phase"] = f"scanning {country}"
+                _append_log(f"[MEGA] Scanning {country} — 20k IPs, Telnet only")
+
+                raw = direct_scan(
+                    country, sample_size=20000,
+                    exclude_ips=known_ips,
+                    ports=[23, 2323],
+                )
+                _mega_scan_progress["ips_scanned"] += 20000
+
+                if raw:
+                    _append_log(f"[MEGA] {country}: {len(raw)} Telnet devices found, saving...")
+                    _mega_scan_progress["phase"] = f"saving {country}"
+                    _ingest_raw_devices(session, raw, classifier, scorer, cve_mapper, country)
+                    _mega_scan_progress["devices_found"] += len(raw)
+                    known_ips.update(d["ip"] for d in raw)
+
+                _mega_scan_progress["countries_done"].append(country)
+
+        _mega_scan_progress["phase"] = "done"
+        _mega_scan_progress["active"] = False
+        _mega_scan_active = False
+        _append_log(
+            f"[MEGA] Done — {_mega_scan_progress['devices_found']} Telnet devices found",
+            "success",
+        )
+
+    thread = threading.Thread(target=_run_mega, daemon=True)
+    thread.start()
+    return {"status": "started", "sample_per_country": 20000, "ports": [23, 2323]}
+
+
+@router.get("/mega-telnet-scan/progress")
+def mega_telnet_progress():
+    return dict(_mega_scan_progress)
+
+
 class ProxyAdd(BaseModel):
     proxies: list[str] = []
     strategy: str | None = None
