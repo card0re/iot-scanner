@@ -39,6 +39,8 @@ def on_startup():
     if settings.proxy_url:
         proxy_pool.add_proxies([settings.proxy_url])
     proxy_scraper.start_daemon(interval=300)
+    from app.api.exploited import start_monitor
+    start_monitor(interval=300)
 
 
 @app.get("/api/health")
